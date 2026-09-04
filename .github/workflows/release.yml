@@ -8,8 +8,8 @@ jobs:
   test-linux:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y sbcl libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev zip curl ffmpeg xvfb xdotool imagemagick
+      - uses: actions/checkout@v5
+      - run: sudo apt-get update && sudo apt-get install -y sbcl libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev zip curl ffmpeg xvfb xdotool imagemagick librsvg2-bin
       - run: curl -O https://beta.quicklisp.org/quicklisp.lisp && sbcl --non-interactive --load quicklisp.lisp --eval '(quicklisp-quickstart:install)' --eval '(ql:quickload :sdl2)'
       - run: make test
       - run: make playtest
@@ -22,7 +22,7 @@ jobs:
   build-windows:
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: crazy-max/ghaction-chocolatey@v3
         with:
           args: install sbcl -y
@@ -39,7 +39,7 @@ jobs:
           $env:SDL_BIN="C:\msys64\mingw64\bin"
           $env:PATH="$env:SDL_BIN;$env:PATH"
           Invoke-WebRequest https://beta.quicklisp.org/quicklisp.lisp -OutFile quicklisp.lisp
-          sbcl --non-interactive --load quicklisp.lisp --eval '(quicklisp-quickstart:install)' --eval '(ql:quickload :sdl2)'
+          sbcl --non-interactive --load quicklisp.lisp --eval '(quicklisp-quickstart:install)'
           ./scripts/build-windows.ps1
       - uses: actions/upload-artifact@v4
         with:

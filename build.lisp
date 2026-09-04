@@ -1,6 +1,17 @@
 ;;;; Gera um executável SBCL autocontido. A biblioteca SDL2 continua sendo nativa.
 (load (merge-pathnames "quicklisp/setup.lisp" (user-homedir-pathname)))
 (pushnew (uiop:getcwd) asdf:*central-registry* :test #'equal)
+
+;; No Windows, informa ao CFFI onde estão as DLLs antes de carregar o SDL2.
+(when (uiop:getenv "SDL_BIN")
+  (ql:quickload :cffi :silent t))
+
+(let ((diretorio-sdl (uiop:getenv "SDL_BIN")))
+  (when diretorio-sdl
+    (pushnew (uiop:ensure-directory-pathname diretorio-sdl)
+             cffi:*foreign-library-directories*
+             :test #'equal)))
+
 (ql:quickload :asterion-assembly :silent t)
 
 (defun asterion-entrypoint ()

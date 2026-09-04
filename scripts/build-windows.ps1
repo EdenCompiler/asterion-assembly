@@ -4,6 +4,9 @@ $Dist = Join-Path $Root "dist\windows"
 New-Item -ItemType Directory -Force -Path $Dist | Out-Null
 $env:ASTERION_OUTPUT = Join-Path $Dist "asterion-assembly.exe"
 sbcl --script (Join-Path $Root "build.lisp")
+if ($LASTEXITCODE -ne 0) {
+    throw "A compilação SBCL falhou com o código $LASTEXITCODE."
+}
 $Package = Join-Path $Root "dist\AsterionAssembly-windows-x64"
 Remove-Item -Recurse -Force $Package -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path "$Package\mods", "$Package\docs" | Out-Null
