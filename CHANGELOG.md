@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.0.0-dev — 2026-09-04
+
+- Added deterministic 32×32 chunks, compact resource stores and schema-2 migration.
+- Added stable parallel job command buffers and canonical simulation hashing.
+- Added exact two-lane belt positions with save persistence and visible congestion.
+- Added fluid pressure, power priority/storage, typed circuit networks and blueprints.
+- Added rail graphs, block reservations, schedules and deadlock-cycle reporting.
+- Expanded Asterion to 70 items, 90 recipes, 52 buildings and 36 technologies.
+- Added original generated industrial atlases for 16 buildings and 24 item icons.
+- Added finite deposits that scale with distance and construction-drone ghost handling.
+- Added a paginated static build catalog and expanded virtual rendering coverage.
+
 ## 1.1.0 — 2026-09-04
 
 - Added contextual building inspection with status, power, contents and throughput.

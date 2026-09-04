@@ -84,6 +84,7 @@
    #:power-network-id #:power-network-generation #:power-network-demand
    #:power-network-stored #:power-network-capacity #:power-network-nodes
    #:power-network-satisfaction #:circuit-network-id #:circuit-network-signals
+   #:circuit-network-nodes #:circuit-network-revision
    #:circuit-write #:circuit-read #:clear-circuit-network
    #:rail-node-id #:rail-node-x #:rail-node-y #:rail-edge-id
    #:rail-edge-from #:rail-edge-to #:rail-edge-length #:rail-edge-block
@@ -927,6 +928,9 @@
                          collect (aref (belt-lane-stacks valor) i))))
     ((hash-table-p valor)
      (list :antigonus-hash-table (tabela-para-lista valor)))
+    ((vectorp valor)
+     (list :antigonus-vector
+           (loop for elemento across valor collect (valor-para-dados elemento))))
     ((consp valor)
      (cons (valor-para-dados (car valor)) (valor-para-dados (cdr valor))))
     (t valor)))
@@ -943,6 +947,8 @@
        pista))
     ((and (consp dados) (eq (car dados) :antigonus-hash-table))
      (lista-para-tabela (second dados)))
+    ((and (consp dados) (eq (car dados) :antigonus-vector))
+     (coerce (mapcar #'dados-para-valor (second dados)) 'vector))
     ((consp dados)
      (cons (dados-para-valor (car dados)) (dados-para-valor (cdr dados))))
     (t dados)))
@@ -959,7 +965,8 @@
   (list :id (building-id b) :kind (building-kind b) :x (building-x b) :y (building-y b)
         :rotation (building-rotation b) :inventory (tabela-para-lista (building-inventory b))
         :recipe (building-recipe b) :progress (building-progress b)
-        :enabled (building-enabled b) :hp (building-hp b) :state (building-state b)))
+        :enabled (building-enabled b) :hp (building-hp b)
+        :state (valor-para-dados (building-state b))))
 (defun entidade-para-dados (e)
   (list :id (entity-id e) :kind (entity-kind e) :x (entity-x e) :y (entity-y e)
         :vx (entity-vx e) :vy (entity-vy e) :hp (entity-hp e) :data (entity-data e)))
@@ -1029,7 +1036,7 @@
                                :inventory (lista-para-tabela (getf p :inventory))
                                :recipe (getf p :recipe) :progress (getf p :progress)
                                :enabled (getf p :enabled) :hp (getf p :hp)
-                               :state (getf p :state))))
+                               :state (dados-para-valor (getf p :state)))))
         (setf (gethash (building-id b) (world-buildings m)) b
               (gethash (cons (building-x b) (building-y b)) (world-positions m))
               (building-id b))

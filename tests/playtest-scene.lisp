@@ -27,6 +27,16 @@
     (antigonus:place-building mundo :belt 3 -2 :rotation 0)
     (antigonus:place-building mundo :belt 2 -1 :rotation 1)
     (antigonus:inventory-add (antigonus:building-inventory divisor) :copper-ore 6))
+  ;; Galeria 2.0: garante que cada célula do novo atlas seja renderizada no
+  ;; backend real, incluindo transparência, culling e ícones sem animação.
+  (loop for kind in '(:underground-belt :filter-splitter :stack-inserter :loader
+                      :boiler :directional-pump :circuit-sensor
+                      :arithmetic-combinator :decider-combinator :chain-signal
+                      :curved-rail :diagonal-crossing :construction-roboport
+                      :logistics-roboport :scrubber :supply-depot)
+        for indice from 0 do
+          (antigonus:place-building mundo kind (+ 4 (mod indice 4))
+                                    (+ -4 (floor indice 4))))
   (antigonus:inventory-add (antigonus:building-inventory minerador) :iron-ore 20)
   (antigonus:spawn-entity mundo :crawler 5.5 1.5 :hp 90 :data '(:playtest t))
   (antigonus:run-game (asterion-assembly::configurar) :world mundo))
