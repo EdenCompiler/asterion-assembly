@@ -27,6 +27,7 @@ jobs:
         with:
           args: install sbcl -y
       - uses: msys2/setup-msys2@v2
+        id: msys2
         with:
           msystem: MINGW64
           update: true
@@ -35,8 +36,13 @@ jobs:
             mingw-w64-x86_64-SDL2_image
             mingw-w64-x86_64-SDL2_mixer
       - shell: powershell
+        env:
+          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
         run: |
-          $env:SDL_BIN="C:\msys64\mingw64\bin"
+          $env:SDL_BIN=Join-Path $env:MSYS2_LOCATION "mingw64\bin"
+          if (!(Test-Path "$env:SDL_BIN\SDL2.dll")) {
+            throw "SDL2.dll não foi encontrado em $env:SDL_BIN."
+          }
           $env:PATH="$env:SDL_BIN;$env:PATH"
           Invoke-WebRequest https://beta.quicklisp.org/quicklisp.lisp -OutFile quicklisp.lisp
           sbcl --non-interactive --load quicklisp.lisp --eval '(quicklisp-quickstart:install)'
