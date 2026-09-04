@@ -1,4 +1,4 @@
-;;;; Antigonus 1.0.0 — engine 2D para jogos de automação.
+;;;; Antigonus 2.0.0 — engine 2D para jogos de automação.
 ;;;; O núcleo inteiro da engine vive neste arquivo. A API pública é em inglês;
 ;;;; implementação, comentários e diagnósticos são mantidos em português.
 
@@ -13,14 +13,22 @@
 (defpackage #:antigonus
   (:use #:cl)
   (:export
-   #:+engine-version+ #:+save-version+ #:game-config #:world #:entity-id
+   #:+engine-version+ #:+save-version+ #:+chunk-size+ #:game-config #:world #:entity-id
    #:item-definition #:recipe-definition #:building-definition
    #:technology-definition #:mod-manifest #:building #:entity #:train
+   #:chunk #:belt-lane #:belt-network #:fluid-network #:power-network
+   #:circuit-network #:rail-node #:rail-edge #:rail-graph #:train-schedule
+   #:train-schedule-stop #:blueprint-definition #:blueprint-entry
+   #:simulation-command
    #:define-game #:defgame #:run-game #:stop-game #:replace-world #:make-world #:with-world
    #:world-seed #:world-tick
    #:world-building-count
    #:world-pollution #:world-research #:world-campaign #:world-difficulty
-   #:world-game-data #:reset-engine #:define-system #:defsystem #:remove-system
+   #:world-game-data #:world-chunks #:world-belt-networks #:world-fluid-networks
+   #:world-power-networks #:world-circuit-networks #:world-rail-graph
+   #:world-blueprints #:world-ghosts #:reset-engine #:define-system #:defsystem
+   #:remove-system #:run-deterministic-jobs #:enqueue-simulation-command
+   #:simulation-state-hash
    #:spawn-entity #:remove-entity #:map-entities #:entity-kind #:entity-x
    #:entity-y #:entity-hp #:entity-data #:place-building #:remove-building
    #:building-at #:map-buildings #:building-id #:building-kind #:building-x
@@ -33,14 +41,22 @@
    #:register-technology #:deftechnology #:find-technology #:map-technologies
    #:item-definition-id #:item-definition-name #:item-definition-stack-size
    #:item-definition-color #:item-definition-description
+   #:item-definition-material-kind #:item-definition-density
    #:recipe-definition-id #:recipe-definition-inputs #:recipe-definition-outputs
-   #:recipe-definition-duration #:recipe-definition-category #:building-definition-id
+   #:recipe-definition-duration #:recipe-definition-category
+   #:recipe-definition-fluid-inputs #:recipe-definition-fluid-outputs
+   #:recipe-definition-catalysts #:recipe-definition-byproducts
+   #:building-definition-id
    #:building-definition-name #:building-definition-category
    #:building-definition-cost #:building-definition-power
    #:building-definition-color #:building-definition-size
+   #:building-definition-footprint #:building-definition-ports
+   #:building-definition-render-layers #:building-definition-circuit-connectors
+   #:building-definition-tags
    #:technology-definition-id #:technology-definition-cost
    #:technology-definition-name #:technology-definition-unlocks
-   #:technology-definition-prerequisites #:simulate-tick #:on-event #:emit-event
+   #:technology-definition-prerequisites #:technology-definition-branch
+   #:simulate-tick #:on-event #:emit-event
    #:save-game #:load-game #:autosave-game #:discover-mods #:load-mods
    #:mod-fingerprint #:mod-manifest-id #:mod-manifest-version
    #:mod-manifest-name #:mod-manifest-dependencies #:mod-manifest-enabled
@@ -54,6 +70,33 @@
    #:screen-to-world #:world-to-screen #:mouse-position #:input-down-p
    #:set-time-scale #:time-scale #:paused-p #:toggle-pause #:engine-log
    #:profile-snapshot #:resource-noise #:find-path #:rail-route
+   #:chunk-x #:chunk-y #:chunk-tiles #:chunk-resources #:chunk-building-ids
+   #:ensure-chunk #:find-chunk #:map-chunks #:world-tile #:set-world-tile
+   #:chunk-resource-count #:set-chunk-resource-count #:deplete-resource
+   #:belt-lane-count #:belt-lane-capacity #:belt-lane-items
+   #:belt-lane-positions #:belt-lane-stacks #:make-belt-lane
+   #:belt-lane-insert #:belt-lane-remove-front #:advance-belt-lane
+   #:make-fluid-network #:make-power-network #:make-circuit-network
+   #:ensure-fluid-network #:ensure-power-network #:ensure-circuit-network
+   #:simulate-fluid-network #:allocate-power-network
+   #:fluid-network-id #:fluid-network-fluid #:fluid-network-volume
+   #:fluid-network-capacity #:fluid-network-pressure #:fluid-network-nodes
+   #:power-network-id #:power-network-generation #:power-network-demand
+   #:power-network-stored #:power-network-capacity #:power-network-nodes
+   #:power-network-satisfaction #:circuit-network-id #:circuit-network-signals
+   #:circuit-write #:circuit-read #:clear-circuit-network
+   #:rail-node-id #:rail-node-x #:rail-node-y #:rail-edge-id
+   #:rail-edge-from #:rail-edge-to #:rail-edge-length #:rail-edge-block
+   #:rail-edge-one-way #:rail-graph-nodes #:rail-graph-edges
+   #:rail-graph-block-reservations #:add-rail-node #:add-rail-edge
+   #:reserve-rail-block #:release-rail-blocks #:rail-deadlocks
+   #:train-schedule-stops #:train-schedule-index #:train-schedule-mode
+   #:train-schedule-stop-station #:train-schedule-stop-condition
+   #:train-schedule-stop-value #:set-train-schedule
+   #:blueprint-definition-id #:blueprint-definition-name
+   #:blueprint-definition-entries #:blueprint-entry-kind #:blueprint-entry-x
+   #:blueprint-entry-y #:blueprint-entry-rotation #:blueprint-entry-settings
+   #:capture-blueprint #:apply-blueprint
    #:game-config-title #:game-config-width #:game-config-height
    #:game-config-start #:game-config-update #:game-config-render
    #:game-config-input #:game-config-shutdown))
@@ -63,15 +106,20 @@
 
 (in-package #:antigonus)
 
-(defparameter +engine-version+ "1.0.0")
-(defconstant +save-version+ 1)
+(defparameter +engine-version+ "2.0.0")
+(defconstant +save-version+ 2)
+(defconstant +chunk-size+ 32)
 (deftype entity-id () '(integer 1 *))
 
-(defstruct item-definition id name (stack-size 100) color description)
-(defstruct recipe-definition id (inputs nil) (outputs nil) (duration 30) category)
+(defstruct item-definition id name (stack-size 100) color description
+           (material-kind :solid) (density 1.0))
+(defstruct recipe-definition id (inputs nil) (outputs nil) (duration 30) category
+           (fluid-inputs nil) (fluid-outputs nil) (catalysts nil) (byproducts nil))
 (defstruct building-definition id name category (cost nil) (power 0) color
-           (size 1) recipe-category description)
-(defstruct technology-definition id name (cost nil) (unlocks nil) prerequisites description)
+           (size 1) recipe-category description (footprint '(1 . 1)) (ports nil)
+           (render-layers nil) (circuit-connectors nil) (tags nil))
+(defstruct technology-definition id name (cost nil) (unlocks nil) prerequisites
+           description (branch :main))
 (defstruct mod-manifest id name version engine-version dependencies conflicts
            path (enabled t) scripts content)
 (defstruct (entity (:constructor %make-entity)) id kind x y (vx 0.0) (vy 0.0)
@@ -81,12 +129,59 @@
            (enabled t) (hp 100) state)
 (defstruct (train (:constructor %make-train)) id route (route-index 0)
            (progress 0.0) (speed 0.08) (cargo (make-hash-table :test #'equal))
-           (status :moving))
+           (status :moving) schedule (reserved-blocks nil) (manual-p nil)
+           (fluid-cargo (make-hash-table :test #'equal)))
+(defstruct (chunk (:constructor %make-chunk)) x y
+           (tiles (make-array (* +chunk-size+ +chunk-size+)
+                              :element-type '(unsigned-byte 16) :initial-element 0))
+           (resources (make-hash-table :test #'equal))
+           (building-ids (make-array 0 :element-type 'fixnum
+                                       :adjustable t :fill-pointer 0))
+           (revision 0) (active-p t))
+(defstruct (belt-lane (:constructor make-belt-lane
+                           (&key (capacity 8)
+                                 &aux
+                                 (items (make-array capacity :initial-element nil))
+                                 (positions (make-array capacity
+                                                        :element-type '(unsigned-byte 16)
+                                                        :initial-element 0))
+                                 (stacks (make-array capacity
+                                                     :element-type '(unsigned-byte 16)
+                                                     :initial-element 0)))))
+  (capacity 8 :type fixnum) (count 0 :type fixnum) items positions stacks)
+(defstruct belt-network id (cells nil) (throughput 0) (blocked 0))
+(defstruct fluid-network id fluid (volume 0.0) (capacity 0.0) (pressure 0.0)
+           (nodes nil) (revision 0))
+(defstruct power-network id (generation 0.0) (demand 0.0) (stored 0.0)
+           (capacity 0.0) (nodes nil) (satisfaction 1.0) (revision 0))
+(defstruct circuit-network id (signals (make-hash-table :test #'equal))
+           (nodes nil) (revision 0))
+(defstruct rail-node id x y (connections nil) station)
+(defstruct rail-edge id from to (length 1.0) (block 0) (one-way nil)
+           (geometry :straight) (speed-limit 1.0))
+(defstruct (rail-graph (:constructor make-rail-graph
+                           (&aux (nodes (make-hash-table))
+                                 (edges (make-hash-table))
+                                 (block-reservations (make-hash-table)))))
+  nodes edges block-reservations (next-node-id 1) (next-edge-id 1))
+(defstruct train-schedule-stop station (condition :full) value (wait-ticks 0))
+(defstruct train-schedule (stops nil) (index 0) (mode :automatic))
+(defstruct blueprint-entry kind x y (rotation 0) settings)
+(defstruct blueprint-definition id name (entries nil))
+(defstruct simulation-command key function)
+(defstruct system-definition name (priority 0) (phase :simulation) reads writes
+           (parallel nil) function)
 (defstruct (world (:constructor %make-world)) (seed 1) (tick 0)
            (buildings (make-hash-table)) (positions (make-hash-table :test #'equal))
            (entities (make-hash-table)) (trains nil) (next-id 1)
            (pollution 0.0) (research nil) (campaign nil) (difficulty :standard)
-           (game-data (make-hash-table :test #'equal)) (events nil))
+           (game-data (make-hash-table :test #'equal)) (events nil)
+           (chunks (make-hash-table :test #'equal))
+           (belt-networks (make-hash-table)) (fluid-networks (make-hash-table))
+           (power-networks (make-hash-table)) (circuit-networks (make-hash-table))
+           (rail-graph (make-rail-graph))
+           (blueprints (make-hash-table :test #'equal)) (ghosts nil)
+           (worker-count 1))
 (defstruct (game-config (:constructor %make-game-config)) title (width 1280)
            (height 720) start update render input shutdown)
 (defstruct (sprite-sheet (:constructor %make-sprite-sheet)) id path columns rows
@@ -159,8 +254,14 @@
 
 (defmacro defsystem (name options lambda-list &body body)
   "Declara e registra um sistema. Ex.: (DEFSYSTEM :MOVE (:PRIORITY 10) (WORLD) ...)."
-  (let ((prioridade (or (getf options :priority) 0)))
-    `(define-system ,name (lambda ,lambda-list ,@body) :priority ,prioridade)))
+  (let ((prioridade (or (getf options :priority) 0))
+        (fase (or (getf options :phase) :simulation))
+        (leituras (getf options :reads))
+        (escritas (getf options :writes))
+        (paralelo (getf options :parallel)))
+    `(define-system ,name (lambda ,lambda-list ,@body)
+       :priority ,prioridade :phase ,fase :reads ',leituras :writes ',escritas
+       :parallel ,paralelo)))
 
 (defmacro deftranslations (language &body pairs)
   "Declara traduções; cada entrada tem a forma (KEY \"TEXT\")."
@@ -171,8 +272,74 @@
   "Declara uma animação visual sobre uma faixa contígua de uma atlas."
   `(register-animation ,id ,@options))
 
-(defun make-world (&key (seed 1) (difficulty :standard))
-  (%make-world :seed (max 1 (abs seed)) :difficulty difficulty))
+(defun make-world (&key (seed 1) (difficulty :standard)
+                         (worker-count 1))
+  (%make-world :seed (max 1 (abs seed)) :difficulty difficulty
+               :worker-count (max 1 worker-count)))
+
+;;; Mundo dividido em chunks. As tabelas 1.x continuam sendo índices globais
+;;; compatíveis; o chunk é a fonte de localidade para geração, render e jobs.
+(defun coordenada-chunk (valor) (floor valor +chunk-size+))
+(defun coordenada-local (valor) (mod valor +chunk-size+))
+
+(defun find-chunk (mundo x y)
+  "Encontra o chunk que contém a coordenada mundial X,Y sem criá-lo."
+  (gethash (cons (coordenada-chunk x) (coordenada-chunk y))
+           (world-chunks mundo)))
+
+(defun ensure-chunk (mundo x y)
+  "Encontra ou cria deterministicamente o chunk que contém X,Y."
+  (let* ((cx (coordenada-chunk x)) (cy (coordenada-chunk y))
+         (chave (cons cx cy)))
+    (or (gethash chave (world-chunks mundo))
+        (setf (gethash chave (world-chunks mundo)) (%make-chunk :x cx :y cy)))))
+
+(defun map-chunks (funcao mundo &key active-only)
+  "Percorre chunks em ordem estável, independentemente da hash-table."
+  (let (chunks)
+    (maphash (lambda (chave chunk) (declare (ignore chave)) (push chunk chunks))
+             (world-chunks mundo))
+    (dolist (chunk (sort chunks (lambda (a b)
+                                  (or (< (chunk-y a) (chunk-y b))
+                                      (and (= (chunk-y a) (chunk-y b))
+                                           (< (chunk-x a) (chunk-x b)))))))
+      (when (or (not active-only) (chunk-active-p chunk))
+        (funcall funcao chunk)))))
+
+(defun indice-tile-local (x y)
+  (+ (coordenada-local x) (* (coordenada-local y) +chunk-size+)))
+
+(defun world-tile (mundo x y)
+  (let ((chunk (find-chunk mundo x y)))
+    (if chunk (aref (chunk-tiles chunk) (indice-tile-local x y)) 0)))
+
+(defun set-world-tile (mundo x y tile)
+  (let ((chunk (ensure-chunk mundo x y)))
+    (setf (aref (chunk-tiles chunk) (indice-tile-local x y)) tile)
+    (incf (chunk-revision chunk)) tile))
+
+(defun chunk-resource-count (mundo x y recurso)
+  (let ((chunk (find-chunk mundo x y)))
+    (if chunk
+        (gethash (list (coordenada-local x) (coordenada-local y) recurso)
+                 (chunk-resources chunk) 0)
+        0)))
+
+(defun set-chunk-resource-count (mundo x y recurso quantidade)
+  (let* ((chunk (ensure-chunk mundo x y))
+         (chave (list (coordenada-local x) (coordenada-local y) recurso)))
+    (if (plusp quantidade)
+        (setf (gethash chave (chunk-resources chunk)) quantidade)
+        (remhash chave (chunk-resources chunk)))
+    (incf (chunk-revision chunk)) (max 0 quantidade)))
+
+(defun deplete-resource (mundo x y recurso &optional (quantidade 1))
+  "Remove até QUANTIDADE da jazida e retorna o total realmente removido."
+  (let* ((atual (chunk-resource-count mundo x y recurso))
+         (removido (min atual (max 0 quantidade))))
+    (when (plusp removido)
+      (set-chunk-resource-count mundo x y recurso (- atual removido)))
+    removido))
 
 (defun world-building-count (world)
   "Retorna a quantidade de construções ativas do mundo."
@@ -241,35 +408,45 @@
                (setf (sprite-sheet-texture folha) nil)))
            *folhas-sprites*) t)
 
-(defun register-item (id &key name (stack-size 100) color description)
+(defun register-item (id &key name (stack-size 100) color description
+                               (material-kind :solid) (density 1.0))
   (setf (gethash id *itens*)
         (make-item-definition :id id :name (or name (string id))
-                              :stack-size stack-size :color color :description description)))
+                              :stack-size stack-size :color color :description description
+                              :material-kind material-kind :density density)))
 (defun find-item (id) (gethash id *itens*))
 (defun map-items (funcao) (maphash (lambda (k v) (declare (ignore k)) (funcall funcao v)) *itens*))
 
-(defun register-recipe (id &key inputs outputs (duration 30) category)
+(defun register-recipe (id &key inputs outputs (duration 30) category
+                                 fluid-inputs fluid-outputs catalysts byproducts)
   (setf (gethash id *receitas*)
         (make-recipe-definition :id id :inputs inputs :outputs outputs
-                                :duration duration :category category)))
+                                :duration duration :category category
+                                :fluid-inputs fluid-inputs :fluid-outputs fluid-outputs
+                                :catalysts catalysts :byproducts byproducts)))
 (defun find-recipe (id) (gethash id *receitas*))
 (defun map-recipes (funcao) (maphash (lambda (k v) (declare (ignore k)) (funcall funcao v)) *receitas*))
 
 (defun register-building (id &key name category cost (power 0) color (size 1)
-                                  recipe-category description)
+                                  recipe-category description footprint ports
+                                  render-layers circuit-connectors tags)
   (setf (gethash id *construcoes*)
         (make-building-definition :id id :name (or name (string id)) :category category
                                   :cost cost :power power :color color :size size
-                                  :recipe-category recipe-category :description description)))
+                                  :recipe-category recipe-category :description description
+                                  :footprint (or footprint (cons size size)) :ports ports
+                                  :render-layers render-layers
+                                  :circuit-connectors circuit-connectors :tags tags)))
 (defun find-building (id) (gethash id *construcoes*))
 (defun map-building-definitions (funcao)
   (maphash (lambda (k v) (declare (ignore k)) (funcall funcao v)) *construcoes*))
 
-(defun register-technology (id &key name cost unlocks prerequisites description)
+(defun register-technology (id &key name cost unlocks prerequisites description
+                                     (branch :main))
   (setf (gethash id *tecnologias*)
         (make-technology-definition :id id :name (or name (string id)) :cost cost
                                     :unlocks unlocks :prerequisites prerequisites
-                                    :description description)))
+                                    :description description :branch branch)))
 (defun find-technology (id) (gethash id *tecnologias*))
 (defun map-technologies (funcao)
   (maphash (lambda (k v) (declare (ignore k)) (funcall funcao v)) *tecnologias*))
@@ -296,6 +473,237 @@
            (dolist (par ,copia) (setf (gethash (car par) ,inv) (cdr par)))))
        ,ok)))
 
+;;; Logística compacta: cada pista guarda símbolos e posições fixas 0..65535
+;;; em vetores paralelos. Não há consing por tick durante o avanço.
+(defun belt-lane-insert (pista item &key (position 0) (stack 1) (min-gap 4096))
+  "Insere ITEM se houver capacidade e espaço físico no início da pista."
+  (let ((quantidade (belt-lane-count pista)))
+    (when (and (< quantidade (belt-lane-capacity pista))
+               (loop for i below quantidade
+                     always (>= (abs (- (aref (belt-lane-positions pista) i)
+                                        position))
+                                min-gap)))
+      (setf (aref (belt-lane-items pista) quantidade) item
+            (aref (belt-lane-positions pista) quantidade)
+            (max 0 (min 65535 position))
+            (aref (belt-lane-stacks pista) quantidade)
+            (max 1 (min 65535 stack)))
+      (incf (belt-lane-count pista))
+      ;; Mantém a frente (maior posição) no final, facilitando a remoção.
+      (loop for i downfrom quantidade above 0
+            while (< (aref (belt-lane-positions pista) i)
+                     (aref (belt-lane-positions pista) (1- i))) do
+        (rotatef (aref (belt-lane-items pista) i)
+                 (aref (belt-lane-items pista) (1- i)))
+        (rotatef (aref (belt-lane-positions pista) i)
+                 (aref (belt-lane-positions pista) (1- i)))
+        (rotatef (aref (belt-lane-stacks pista) i)
+                 (aref (belt-lane-stacks pista) (1- i))))
+      t)))
+
+(defun belt-lane-remove-front (pista &key (threshold 65535))
+  "Remove e retorna ITEM,STACK da frente quando ele atingiu THRESHOLD."
+  (let ((indice (1- (belt-lane-count pista))))
+    (when (and (>= indice 0)
+               (>= (aref (belt-lane-positions pista) indice) threshold))
+      (let ((item (aref (belt-lane-items pista) indice))
+            (pilha (aref (belt-lane-stacks pista) indice)))
+        (setf (aref (belt-lane-items pista) indice) nil
+              (belt-lane-count pista) indice)
+        (values item pilha t)))))
+
+(defun advance-belt-lane (pista velocidade &key (min-gap 4096))
+  "Avança posições sem ultrapassar o item à frente e retorna a pista."
+  (loop for i downfrom (1- (belt-lane-count pista)) to 0
+        for limite = (if (= i (1- (belt-lane-count pista)))
+                         65535
+                         (max 0 (- (aref (belt-lane-positions pista) (1+ i)) min-gap)))
+        do (setf (aref (belt-lane-positions pista) i)
+                 (min limite (+ (aref (belt-lane-positions pista) i)
+                                (max 0 velocidade)))))
+  pista)
+
+;;; Redes de fluidos e energia deliberadamente usam modelos estáveis e
+;;; discretos: profundidade operacional sem integrar dinâmica contínua cara.
+(defun equilibrar-fluidos (redes)
+  (dolist (rede redes)
+    (setf (fluid-network-volume rede)
+          (max 0.0 (min (fluid-network-capacity rede) (fluid-network-volume rede)))
+          (fluid-network-pressure rede)
+          (if (plusp (fluid-network-capacity rede))
+              (/ (fluid-network-volume rede) (fluid-network-capacity rede)) 0.0))
+    (incf (fluid-network-revision rede)))
+  redes)
+
+(defun ensure-fluid-network (mundo id &key fluid (capacity 0.0) nodes)
+  (or (gethash id (world-fluid-networks mundo))
+      (setf (gethash id (world-fluid-networks mundo))
+            (make-fluid-network :id id :fluid fluid :capacity capacity :nodes nodes))))
+
+(defun ensure-power-network (mundo id &key (capacity 0.0) nodes)
+  (or (gethash id (world-power-networks mundo))
+      (setf (gethash id (world-power-networks mundo))
+            (make-power-network :id id :capacity capacity :nodes nodes))))
+
+(defun ensure-circuit-network (mundo id &key nodes)
+  (or (gethash id (world-circuit-networks mundo))
+      (setf (gethash id (world-circuit-networks mundo))
+            (make-circuit-network :id id :nodes nodes))))
+
+(defun simulate-fluid-network (rede &key (inflow 0.0) (outflow 0.0))
+  "Atualiza volume e pressão de uma única rede, conservando o fluido."
+  (incf (fluid-network-volume rede) (- inflow outflow))
+  (first (equilibrar-fluidos (list rede))))
+
+(defun distribuir-energia (rede cargas)
+  "Distribui energia por prioridade e ID. CARGAS: (ID PRIORIDADE DEMANDA CALLBACK)."
+  (let* ((ordenadas (stable-sort (copy-list cargas)
+                                 (lambda (a b)
+                                   (or (> (second a) (second b))
+                                       (and (= (second a) (second b))
+                                            (< (first a) (first b)))))))
+         (disponivel (+ (power-network-generation rede)
+                        (power-network-stored rede)))
+         (total (reduce #'+ ordenadas :key #'third :initial-value 0.0)))
+    (setf (power-network-demand rede) total)
+    (dolist (carga ordenadas)
+      (let ((ligada (>= disponivel (third carga))))
+        (when ligada (decf disponivel (third carga)))
+        (funcall (fourth carga) ligada)))
+    (setf (power-network-stored rede)
+          (min (power-network-capacity rede) (max 0.0 disponivel))
+          (power-network-satisfaction rede)
+          (if (zerop total) 1.0 (min 1.0 (/ (+ (power-network-generation rede)
+                                                (power-network-stored rede))
+                                             total))))
+    (incf (power-network-revision rede)) rede))
+
+(defun allocate-power-network (rede loads)
+  "API pública para distribuição determinística de energia."
+  (distribuir-energia rede loads))
+
+(defun circuit-write (rede signal value &key (mode :set))
+  (ecase mode
+    (:set (setf (gethash signal (circuit-network-signals rede)) value))
+    (:add (incf (gethash signal (circuit-network-signals rede) 0) value))
+    (:max (setf (gethash signal (circuit-network-signals rede))
+                (max value (gethash signal (circuit-network-signals rede)
+                                    most-negative-fixnum)))))
+  (incf (circuit-network-revision rede)) value)
+
+(defun circuit-read (rede signal &optional (default 0))
+  (gethash signal (circuit-network-signals rede) default))
+
+(defun clear-circuit-network (rede)
+  (clrhash (circuit-network-signals rede))
+  (incf (circuit-network-revision rede)) rede)
+
+;;; Grafo ferroviário e reservas de blocos.
+(defun add-rail-node (grafo x y &key station)
+  (let ((id (prog1 (rail-graph-next-node-id grafo)
+              (incf (rail-graph-next-node-id grafo)))))
+    (setf (gethash id (rail-graph-nodes grafo))
+          (make-rail-node :id id :x x :y y :station station))
+    id))
+
+(defun add-rail-edge (grafo from to &key (length 1.0) block one-way
+                                           (geometry :straight) (speed-limit 1.0))
+  (unless (and (gethash from (rail-graph-nodes grafo))
+               (gethash to (rail-graph-nodes grafo)))
+    (error "Nós ferroviários inexistentes: ~A -> ~A" from to))
+  (let* ((id (prog1 (rail-graph-next-edge-id grafo)
+               (incf (rail-graph-next-edge-id grafo))))
+         (aresta (make-rail-edge :id id :from from :to to :length length
+                                 :block (or block id) :one-way one-way
+                                 :geometry geometry :speed-limit speed-limit)))
+    (setf (gethash id (rail-graph-edges grafo)) aresta)
+    (pushnew id (rail-node-connections (gethash from (rail-graph-nodes grafo))))
+    (unless one-way
+      (pushnew id (rail-node-connections (gethash to (rail-graph-nodes grafo)))))
+    id))
+
+(defun reserve-rail-block (grafo block train-id)
+  "Reserva BLOCK para TRAIN-ID; a mesma composição pode renovar a reserva."
+  (let ((dono (gethash block (rail-graph-block-reservations grafo))))
+    (when (or (null dono) (eql dono train-id))
+      (setf (gethash block (rail-graph-block-reservations grafo)) train-id)
+      t)))
+
+(defun release-rail-blocks (grafo train-id)
+  (let (remover)
+    (maphash (lambda (bloco dono) (when (eql dono train-id) (push bloco remover)))
+             (rail-graph-block-reservations grafo))
+    (dolist (bloco remover) (remhash bloco (rail-graph-block-reservations grafo)))
+    (length remover)))
+
+(defun rail-deadlocks (esperas)
+  "Detecta ciclos num grafo TRAIN-ID -> TRAIN-ID e retorna os ciclos canônicos."
+  (let ((visitados (make-hash-table)) (pilha nil) ciclos)
+    (labels ((visitar (id)
+               (case (gethash id visitados)
+                 (:visiting
+                  (let ((inicio (position id pilha)))
+                    (when inicio (push (reverse (subseq pilha 0 (1+ inicio))) ciclos))))
+                 (:done nil)
+                 (otherwise
+                  (setf (gethash id visitados) :visiting)
+                  (push id pilha)
+                  (let ((alvo (cdr (assoc id esperas))))
+                    (when alvo (visitar alvo)))
+                  (pop pilha)
+                  (setf (gethash id visitados) :done)))))
+      (dolist (par (sort (copy-list esperas) #'< :key #'car)) (visitar (car par))))
+    (nreverse ciclos)))
+
+(defun set-train-schedule (trem stops &key (mode :automatic))
+  (setf (train-schedule trem)
+        (make-train-schedule :stops stops :index 0 :mode mode)
+        (train-manual-p trem) (eq mode :manual))
+  trem)
+
+;;; Plantas preservam apenas dados declarativos públicos.
+(defun capture-blueprint (mundo x0 y0 x1 y1 &key id (name "Blueprint"))
+  (let (entradas)
+    (map-buildings
+     (lambda (b)
+       (when (and (<= (min x0 x1) (building-x b) (max x0 x1))
+                  (<= (min y0 y1) (building-y b) (max y0 y1)))
+         (push (make-blueprint-entry
+                :kind (building-kind b) :x (- (building-x b) (min x0 x1))
+                :y (- (building-y b) (min y0 y1)) :rotation (building-rotation b)
+                :settings (list :recipe (building-recipe b))) entradas)))
+     mundo)
+    (let ((planta (make-blueprint-definition
+                   :id (or id (intern (format nil "BLUEPRINT-~D" (1+ (hash-table-count
+                                                                      (world-blueprints mundo))))
+                                      :keyword))
+                   :name name
+                   :entries (sort entradas (lambda (a b)
+                                             (or (< (blueprint-entry-y a)
+                                                    (blueprint-entry-y b))
+                                                 (and (= (blueprint-entry-y a)
+                                                         (blueprint-entry-y b))
+                                                      (< (blueprint-entry-x a)
+                                                         (blueprint-entry-x b)))))))))
+      (setf (gethash (blueprint-definition-id planta) (world-blueprints mundo)) planta)
+      planta)))
+
+(defun apply-blueprint (mundo planta origem-x origem-y &key (ghosts t))
+  "Aplica PLANTA como fantasmas por padrão; NIL constrói imediatamente."
+  (let (criados)
+    (dolist (entrada (blueprint-definition-entries planta) (nreverse criados))
+      (let ((x (+ origem-x (blueprint-entry-x entrada)))
+            (y (+ origem-y (blueprint-entry-y entrada))))
+        (if ghosts
+            (let ((fantasma (list :kind (blueprint-entry-kind entrada) :x x :y y
+                                  :rotation (blueprint-entry-rotation entrada)
+                                  :settings (blueprint-entry-settings entrada))))
+              (push fantasma (world-ghosts mundo)) (push fantasma criados))
+            (let ((b (place-building mundo (blueprint-entry-kind entrada) x y
+                                     :rotation (blueprint-entry-rotation entrada)
+                                     :recipe (getf (blueprint-entry-settings entrada) :recipe))))
+              (when b (push b criados))))))))
+
 (defun place-building (mundo kind x y &key (rotation 0) recipe state)
   (when (and (find-building kind) (null (gethash (cons x y) (world-positions mundo))))
     (let* ((id (prog1 (world-next-id mundo) (incf (world-next-id mundo))))
@@ -304,6 +712,9 @@
                                    :hp (or (getf state :hp) 100))))
       (setf (gethash id (world-buildings mundo)) predio
             (gethash (cons x y) (world-positions mundo)) id)
+      (let ((chunk (ensure-chunk mundo x y)))
+        (vector-push-extend id (chunk-building-ids chunk))
+        (incf (chunk-revision chunk)))
       (emit-event :building-placed mundo predio)
       predio)))
 
@@ -317,6 +728,14 @@
     (when predio
       (remhash (cons (building-x predio) (building-y predio)) (world-positions mundo))
       (remhash (building-id predio) (world-buildings mundo))
+      (let ((chunk (find-chunk mundo (building-x predio) (building-y predio))))
+        (when chunk
+          (let ((indice (position (building-id predio) (chunk-building-ids chunk))))
+            (when indice
+              (replace (chunk-building-ids chunk) (chunk-building-ids chunk)
+                       :start1 indice :start2 (1+ indice))
+              (decf (fill-pointer (chunk-building-ids chunk)))))
+          (incf (chunk-revision chunk))))
       (emit-event :building-removed mundo predio)
       predio)))
 
@@ -337,12 +756,32 @@
   (maphash (lambda (k v) (declare (ignore k)) (funcall funcao v))
            (world-entities mundo)))
 
-(defun define-system (name function &key (priority 0))
-  (setf *sistemas* (remove name *sistemas* :key #'first :test #'equal))
-  (push (list name priority function) *sistemas*)
-  (setf *sistemas* (sort *sistemas* #'< :key #'second))
+(defun ordem-fase (fase)
+  (or (position fase '(:input :pre-simulation :simulation :post-simulation
+                        :presentation)) 2))
+
+(defun ordenar-sistemas (a b)
+  (let ((fa (ordem-fase (system-definition-phase a)))
+        (fb (ordem-fase (system-definition-phase b))))
+    (if (= fa fb)
+        (if (= (system-definition-priority a) (system-definition-priority b))
+            (string< (string (system-definition-name a))
+                     (string (system-definition-name b)))
+            (< (system-definition-priority a) (system-definition-priority b)))
+        (< fa fb))))
+
+(defun define-system (name function &key (priority 0) (phase :simulation)
+                                      reads writes parallel)
+  "Registra um sistema 2.0. Sistemas paralelos devem emitir comandos, não mutar o mundo."
+  (setf *sistemas* (remove name *sistemas* :key #'system-definition-name :test #'equal))
+  (push (make-system-definition :name name :priority priority :phase phase
+                                :reads reads :writes writes :parallel parallel
+                                :function function)
+        *sistemas*)
+  (setf *sistemas* (sort *sistemas* #'ordenar-sistemas))
   name)
-(defun remove-system (name) (setf *sistemas* (remove name *sistemas* :key #'first :test #'equal)))
+(defun remove-system (name)
+  (setf *sistemas* (remove name *sistemas* :key #'system-definition-name :test #'equal)))
 (defun on-event (event function) (push function (gethash event *eventos*)) function)
 (defun emit-event (event &rest args)
   (dolist (funcao (reverse (gethash event *eventos*))) (apply funcao args)))
@@ -353,11 +792,74 @@
 (defun profile-snapshot ()
   (let (resultado) (maphash (lambda (k v) (push (cons k v) resultado)) *perfil*) resultado))
 
+(defvar *buffer-comandos* nil)
+
+(defun enqueue-simulation-command (key function)
+  "Emite uma mutação ordenável a partir de um job paralelo."
+  (push (make-simulation-command :key key :function function) *buffer-comandos*))
+
+(defun run-deterministic-jobs (tarefas funcao &key (workers 1))
+  "Executa tarefas possivelmente em paralelo e retorna resultados na ordem de entrada."
+  (let* ((vetor (coerce tarefas 'vector))
+         (quantidade (length vetor))
+         (resultados (make-array quantidade))
+         (proximo 0)
+         (erro nil)
+         #+sb-thread (trava (sb-thread:make-mutex :name "antigonus-jobs")))
+    (labels ((obter-indice ()
+               #+sb-thread
+               (sb-thread:with-mutex (trava)
+                 (when (< proximo quantidade) (prog1 proximo (incf proximo))))
+               #-sb-thread
+               (when (< proximo quantidade) (prog1 proximo (incf proximo))))
+             (trabalhar ()
+               (loop for indice = (obter-indice) while indice do
+                 (handler-case
+                     (setf (aref resultados indice)
+                           (funcall funcao (aref vetor indice) indice))
+                   (error (e)
+                     #+sb-thread (sb-thread:with-mutex (trava) (unless erro (setf erro e)))
+                     #-sb-thread (unless erro (setf erro e)))))))
+      #+sb-thread
+      (if (> workers 1)
+          (let ((threads (loop repeat (min workers (max 1 quantidade))
+                               collect (sb-thread:make-thread #'trabalhar
+                                                              :name "antigonus-worker"))))
+            (dolist (thread threads) (sb-thread:join-thread thread)))
+          (trabalhar))
+      #-sb-thread (trabalhar))
+    (when erro (error erro))
+    (coerce resultados 'list)))
+
+(defun executar-sistemas-paralelos (sistemas mundo)
+  (let ((buffers
+          (run-deterministic-jobs
+           sistemas
+           (lambda (sistema indice)
+             (declare (ignore indice))
+             (let ((*buffer-comandos* nil))
+               (funcall (system-definition-function sistema) mundo)
+               (nreverse *buffer-comandos*)))
+           :workers (world-worker-count mundo))))
+    (let ((comandos (loop for buffer in buffers append buffer)))
+      (dolist (comando (stable-sort comandos #'string<
+                                    :key (lambda (c)
+                                           (prin1-to-string (simulation-command-key c)))))
+        (funcall (simulation-command-function comando))))))
+
 (defun simulate-tick (mundo)
-  "Avança exatamente um tick determinístico."
+  "Avança exatamente um tick determinístico, aplicando jobs em ordem estável."
   (let ((inicio (get-internal-real-time)))
     (incf (world-tick mundo))
-    (dolist (sistema *sistemas*) (funcall (third sistema) mundo))
+    (loop with restantes = *sistemas* while restantes do
+      (let* ((fase (system-definition-phase (first restantes)))
+             (grupo (loop while (and restantes
+                                      (eq fase (system-definition-phase (first restantes))))
+                          collect (pop restantes)))
+             (paralelos (remove-if-not #'system-definition-parallel grupo)))
+        (dolist (sistema (remove-if #'system-definition-parallel grupo))
+          (funcall (system-definition-function sistema) mundo))
+        (when paralelos (executar-sistemas-paralelos paralelos mundo))))
     (emit-event :tick mundo)
     (registrar-tempo :simulation inicio)
     mundo))
@@ -414,6 +916,15 @@
 ;;; Persistência: somente dados simples entram no arquivo; nenhuma forma é avaliada.
 (defun valor-para-dados (valor)
   (cond
+    ((belt-lane-p valor)
+     (list :antigonus-belt-lane
+           :capacity (belt-lane-capacity valor) :count (belt-lane-count valor)
+           :items (loop for i below (belt-lane-count valor)
+                        collect (aref (belt-lane-items valor) i))
+           :positions (loop for i below (belt-lane-count valor)
+                            collect (aref (belt-lane-positions valor) i))
+           :stacks (loop for i below (belt-lane-count valor)
+                         collect (aref (belt-lane-stacks valor) i))))
     ((hash-table-p valor)
      (list :antigonus-hash-table (tabela-para-lista valor)))
     ((consp valor)
@@ -422,6 +933,14 @@
 
 (defun dados-para-valor (dados)
   (cond
+    ((and (consp dados) (eq (car dados) :antigonus-belt-lane))
+     (let* ((capacidade (getf (cdr dados) :capacity))
+            (pista (make-belt-lane :capacity capacidade)))
+       (loop for item in (getf (cdr dados) :items)
+             for posicao in (getf (cdr dados) :positions)
+             for pilha in (getf (cdr dados) :stacks)
+             do (belt-lane-insert pista item :position posicao :stack pilha :min-gap 0))
+       pista))
     ((and (consp dados) (eq (car dados) :antigonus-hash-table))
      (lista-para-tabela (second dados)))
     ((consp dados)
@@ -444,21 +963,65 @@
 (defun entidade-para-dados (e)
   (list :id (entity-id e) :kind (entity-kind e) :x (entity-x e) :y (entity-y e)
         :vx (entity-vx e) :vy (entity-vy e) :hp (entity-hp e) :data (entity-data e)))
+(defun chunk-para-dados (chunk)
+  (list :x (chunk-x chunk) :y (chunk-y chunk)
+        :tiles (coerce (chunk-tiles chunk) 'list)
+        :resources (tabela-para-lista (chunk-resources chunk))
+        :revision (chunk-revision chunk)))
+
+(defun blueprint-para-dados (planta)
+  (list :id (blueprint-definition-id planta) :name (blueprint-definition-name planta)
+        :entries
+        (mapcar (lambda (e)
+                  (list :kind (blueprint-entry-kind e) :x (blueprint-entry-x e)
+                        :y (blueprint-entry-y e) :rotation (blueprint-entry-rotation e)
+                        :settings (valor-para-dados (blueprint-entry-settings e))))
+                (blueprint-definition-entries planta))))
+
 (defun mundo-para-dados (mundo)
-  (let (predios entidades)
+  (let (predios entidades chunks plantas)
     (map-buildings (lambda (b) (push (predio-para-dados b) predios)) mundo)
     (map-entities (lambda (e) (push (entidade-para-dados e) entidades)) mundo)
+    (map-chunks (lambda (chunk) (push (chunk-para-dados chunk) chunks)) mundo)
+    (maphash (lambda (id planta) (declare (ignore id))
+               (push (blueprint-para-dados planta) plantas))
+             (world-blueprints mundo))
     (list :seed (world-seed mundo) :tick (world-tick mundo) :next-id (world-next-id mundo)
           :pollution (world-pollution mundo) :research (world-research mundo)
           :campaign (world-campaign mundo) :difficulty (world-difficulty mundo)
           :game-data (tabela-para-lista (world-game-data mundo))
-          :buildings predios :entities entidades :mods (mod-fingerprint))))
+          :buildings predios :entities entidades :chunks chunks
+          :blueprints plantas :ghosts (valor-para-dados (world-ghosts mundo))
+          :mods (mod-fingerprint))))
+
+(defun restaurar-chunk (mundo dados)
+  (let* ((x (* (getf dados :x) +chunk-size+))
+         (y (* (getf dados :y) +chunk-size+))
+         (chunk (ensure-chunk mundo x y))
+         (tiles (getf dados :tiles)))
+    (when tiles
+      (replace (chunk-tiles chunk) tiles))
+    (setf (chunk-resources chunk) (lista-para-tabela (getf dados :resources))
+          (chunk-revision chunk) (getf dados :revision 0))
+    chunk))
+
+(defun restaurar-blueprint (dados)
+  (make-blueprint-definition
+   :id (getf dados :id) :name (getf dados :name)
+   :entries (mapcar (lambda (e)
+                      (make-blueprint-entry
+                       :kind (getf e :kind) :x (getf e :x) :y (getf e :y)
+                       :rotation (getf e :rotation)
+                       :settings (dados-para-valor (getf e :settings))))
+                    (getf dados :entries))))
+
 (defun dados-para-mundo (d)
   (let ((m (%make-world :seed (getf d :seed) :tick (getf d :tick)
                         :next-id (getf d :next-id) :pollution (getf d :pollution)
                         :research (getf d :research) :campaign (getf d :campaign)
                         :difficulty (getf d :difficulty)
                         :game-data (lista-para-tabela (getf d :game-data)))))
+    (dolist (chunk (getf d :chunks)) (restaurar-chunk m chunk))
     (dolist (p (getf d :buildings))
       (let ((b (%make-building :id (getf p :id) :kind (getf p :kind)
                                :x (getf p :x) :y (getf p :y)
@@ -469,13 +1032,50 @@
                                :state (getf p :state))))
         (setf (gethash (building-id b) (world-buildings m)) b
               (gethash (cons (building-x b) (building-y b)) (world-positions m))
-              (building-id b))))
+              (building-id b))
+        (let ((chunk (ensure-chunk m (building-x b) (building-y b))))
+          (vector-push-extend (building-id b) (chunk-building-ids chunk)))))
     (dolist (p (getf d :entities))
       (let ((e (%make-entity :id (getf p :id) :kind (getf p :kind)
                              :x (getf p :x) :y (getf p :y) :vx (getf p :vx)
                              :vy (getf p :vy) :hp (getf p :hp) :data (getf p :data))))
         (setf (gethash (entity-id e) (world-entities m)) e)))
+    (dolist (dados-planta (getf d :blueprints))
+      (let ((planta (restaurar-blueprint dados-planta)))
+        (setf (gethash (blueprint-definition-id planta) (world-blueprints m)) planta)))
+    (setf (world-ghosts m) (dados-para-valor (getf d :ghosts)))
     m))
+
+(defun migrar-logistica-v1 (mundo)
+  "Converte buffers agregados antigos em duas pistas sem criar itens."
+  (map-buildings
+   (lambda (b)
+     (when (member (building-kind b) '(:belt :fast-belt :splitter))
+       (let ((pistas (vector (make-belt-lane :capacity 8)
+                             (make-belt-lane :capacity 8)))
+             (lado 0) pares)
+         (maphash (lambda (item quantidade) (push (cons item quantidade) pares))
+                  (building-inventory b))
+         (dolist (par (sort pares #'string< :key (lambda (p) (string (car p)))))
+           (dotimes (i (cdr par))
+             (declare (ignore i))
+             (let* ((pista (aref pistas lado))
+                    (posicao (* 4096 (belt-lane-count pista))))
+               (when (belt-lane-insert pista (car par) :position posicao :min-gap 0)
+                 (inventory-remove (building-inventory b) (car par) 1)
+                 (setf lado (mod (1+ lado) 2))))))
+         (setf (getf (building-state b) :belt-lanes) pistas))))
+   mundo)
+  mundo)
+
+(defun migrar-save-v1 (dados)
+  (let ((mundo (dados-para-mundo dados)))
+    (migrar-logistica-v1 mundo)
+    ;; A rota antiga era um shuttle; a marca permite ao jogo gerar o horário
+    ;; equivalente assim que as estações forem indexadas no novo grafo.
+    (setf (gethash :migrated-from-save (world-game-data mundo)) 1
+          (gethash :needs-rail-schedule-migration (world-game-data mundo)) t)
+    mundo))
 (defun save-game (mundo caminho)
   (ensure-directories-exist caminho)
   (let ((temporario (format nil "~A.tmp" caminho)))
@@ -491,14 +1091,30 @@
   (with-open-file (s caminho :direction :input)
     (let ((*read-eval* nil))
       (let ((dados (read s nil nil)))
-        (unless (and (listp dados) (eql (getf dados :antigonus-save) +save-version+))
+        (unless (and (listp dados) (member (getf dados :antigonus-save) '(1 2)))
           (error "Save incompatível ou corrompido: ~A" caminho))
-        (dados-para-mundo (getf dados :payload))))))
+        (case (getf dados :antigonus-save)
+          (2 (dados-para-mundo (getf dados :payload)))
+          (1
+           (let ((backup (pathname (format nil "~A.v1.bak" (namestring caminho)))))
+             (unless (probe-file backup) (uiop:copy-file caminho backup))
+             (migrar-save-v1 (getf dados :payload)))))))))
 (defun autosave-game (mundo diretorio &key (slots 3))
   (let* ((indice (mod (world-tick mundo) slots))
          (caminho (merge-pathnames (format nil "autosave-~D.save" indice)
                                    (pathname diretorio))))
     (save-game mundo caminho)))
+
+(defun simulation-state-hash (mundo)
+  "Hash FNV-1a de 64 bits sobre a representação canônica do mundo."
+  (let ((hash #xcbf29ce484222325)
+        (texto (with-output-to-string (s)
+                 (let ((*print-pretty* nil) (*print-readably* t))
+                   (prin1 (mundo-para-dados mundo) s)))))
+    (loop for c across texto do
+      (setf hash (logand #xffffffffffffffff
+                         (* (logxor hash (char-code c)) #x100000001b3))))
+    hash))
 
 ;;; Mods declarativos e scripts confiáveis.
 (defun ler-sexp-seguro (arquivo)
