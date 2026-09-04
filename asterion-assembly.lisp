@@ -15,7 +15,11 @@
     :electric-furnace :assembler :chemical-plant :refinery :pipe :pump :tank
     :power-pole :solar-panel :accumulator :steam-generator :laboratory :roboport
     :logistic-chest :rail :rail-signal :station :wall :gun-turret :laser-turret
-    :rocket-turret :plasma-turret :radar :repair-bay :hive-launcher))
+    :rocket-turret :plasma-turret :radar :repair-bay :hive-launcher
+    :underground-belt :filter-splitter :stack-inserter :loader :boiler
+    :directional-pump :circuit-sensor :arithmetic-combinator :decider-combinator
+    :chain-signal :curved-rail :diagonal-crossing :construction-roboport
+    :logistics-roboport :scrubber :supply-depot))
 (defvar *indice-selecao* 0)
 (defvar *zoom* 1.0)
 (defvar *rotacao-construcao* 0)
@@ -31,6 +35,7 @@
 (defvar *mostrar-estatisticas* nil)
 (defvar *mostrar-catalogo* t)
 (defvar *categoria-ui* :all)
+(defvar *pagina-catalogo* 0)
 (defvar *cursor-gamepad-x* 640.0)
 (defvar *cursor-gamepad-y* 360.0)
 (defvar *eixos-gamepad* (make-array 4 :initial-element 0.0))
@@ -54,7 +59,10 @@
     :advanced-circuits :railway :rail-signals :systems-science :laser-defense
     :drones :logistic-network :advanced-smelting :rocketry :crystal-science
     :plasma :rail-capacity :factory-speed-1 :factory-speed-2
-    :military-logistics :hive-assault))
+    :military-logistics :hive-assault :bulk-logistics :fluid-pressure
+    :power-storage :circuit-networks :automated-trains :chain-signals
+    :remote-construction :ecological-industry :restoration :artillery-support
+    :megabase-logistics :planetary-stewardship))
 
 (defun dado (mundo chave &optional padrao)
   (gethash chave (world-game-data mundo) padrao))
@@ -89,7 +97,34 @@
     (destructuring-bind (id nome pilha cor) i
       (defitem id :name nome :stack-size pilha :color cor)))
   (defitem :crystal-analysis :name "Crystal analysis" :stack-size 100
-           :color '(186 112 255)))
+           :color '(186 112 255))
+  ;; Expansão 2.0: materiais tipados alimentam as novas especializações.
+  (dolist (i '((:tungsten-ore "Tungsten ore" 100 (105 120 137) :ore)
+               (:cobalt-ore "Cobalt ore" 100 (65 118 191) :ore)
+               (:biomass "Biomass" 200 (92 151 89) :organic)
+               (:tungsten-plate "Tungsten plate" 100 (142 153 165) :metal)
+               (:cobalt-plate "Cobalt plate" 100 (80 139 212) :metal)
+               (:concrete "Concrete" 200 (139 143 145) :construction)
+               (:reinforced-concrete "Reinforced concrete" 100 (95 105 115) :construction)
+               (:motor "Electric motor" 100 (210 145 67) :component)
+               (:precision-gear "Precision gear" 100 (181 192 201) :component)
+               (:pump-unit "Pump unit" 50 (73 177 200) :component)
+               (:sensor "Network sensor" 100 (89 224 191) :electronics)
+               (:wire-red "Red circuit wire" 200 (237 75 83) :wire)
+               (:wire-green "Green circuit wire" 200 (65 207 116) :wire)
+               (:robot-brain "Robot brain" 50 (110 188 237) :electronics)
+               (:construction-drone "Construction drone" 50 (238 181 63) :vehicle)
+               (:fluid-canister "Fluid canister" 100 (136 177 190) :container)
+               (:coolant "Coolant" 500 (78 203 220) :fluid)
+               (:explosives "Industrial explosives" 100 (224 103 75) :chemical)
+               (:rail-chain-controller "Chain controller" 100 (225 91 98) :electronics)
+               (:pollution-filter "Pollution filter" 100 (104 188 130) :ecology)
+               (:restoration-seed "Restoration seed" 100 (118 211 104) :ecology)
+               (:artillery-shell "Artillery shell" 20 (219 113 73) :ammunition)
+               (:locomotive-frame "Locomotive frame" 20 (150 119 96) :vehicle)
+               (:wagon-frame "Wagon frame" 20 (130 143 151) :vehicle)))
+    (destructuring-bind (id nome pilha cor tipo) i
+      (defitem id :name nome :stack-size pilha :color cor :material-kind tipo))))
 
 (defun registrar-receitas ()
   (dolist (r '((:smelt-iron ((:iron-ore . 1)) ((:iron-plate . 1)) 45 :smelting)
@@ -142,7 +177,40 @@
       (defrecipe (intern (format nil "BUILD-~A" id) :keyword)
         :inputs (if (< indice 10) '((:iron-plate . 3) (:gear . 1))
                     '((:steel-plate . 2) (:circuit . 2)))
-        :outputs (list (cons id 1)) :duration (+ 30 indice) :category :construction))))
+        :outputs (list (cons id 1)) :duration (+ 30 indice) :category :construction)))
+  (dolist (r '((:smelt-tungsten ((:tungsten-ore . 2) (:coal . 1)) ((:tungsten-plate . 1)) 130 :smelting)
+               (:smelt-cobalt ((:cobalt-ore . 2)) ((:cobalt-plate . 1)) 95 :smelting)
+               (:make-concrete ((:stone . 3) (:water . 1)) ((:concrete . 2)) 55 :crafting)
+               (:reinforce-concrete ((:concrete . 2) (:steel-plate . 1)) ((:reinforced-concrete . 1)) 70 :crafting)
+               (:make-motor ((:copper-wire . 4) (:gear . 2) (:steel-plate . 1)) ((:motor . 1)) 65 :crafting)
+               (:precision-gear ((:gear . 2) (:cobalt-plate . 1)) ((:precision-gear . 1)) 70 :crafting)
+               (:pump-unit ((:motor . 1) (:pipe . 2) (:steel-plate . 1)) ((:pump-unit . 1)) 75 :crafting)
+               (:network-sensor ((:circuit . 2) (:copper-wire . 2)) ((:sensor . 1)) 55 :crafting)
+               (:red-wire ((:copper-wire . 1) (:plastic . 1)) ((:wire-red . 2)) 25 :crafting)
+               (:green-wire ((:copper-wire . 1) (:plastic . 1)) ((:wire-green . 2)) 25 :crafting)
+               (:robot-brain ((:processor . 1) (:sensor . 2)) ((:robot-brain . 1)) 100 :crafting)
+               (:construction-drone ((:drone-frame . 1) (:robot-brain . 1)) ((:construction-drone . 1)) 140 :crafting)
+               (:fluid-canister ((:steel-plate . 1) (:plastic . 1)) ((:fluid-canister . 2)) 35 :crafting)
+               (:coolant ((:water . 3) (:sulfur . 1)) ((:coolant . 3)) 65 :chemistry)
+               (:explosives ((:sulfur . 2) (:coal . 2)) ((:explosives . 2)) 80 :chemistry)
+               (:chain-controller ((:signal-part . 1) (:processor . 1)) ((:rail-chain-controller . 1)) 70 :crafting)
+               (:pollution-filter ((:plastic . 2) (:biomass . 3)) ((:pollution-filter . 1)) 90 :chemistry)
+               (:restoration-seed ((:biomass . 4) (:water . 2)) ((:restoration-seed . 2)) 100 :chemistry)
+               (:artillery-shell ((:explosives . 4) (:tungsten-plate . 2)) ((:artillery-shell . 1)) 150 :crafting)
+               (:locomotive-frame ((:tungsten-plate . 4) (:motor . 4)) ((:locomotive-frame . 1)) 180 :crafting)
+               (:wagon-frame ((:reinforced-concrete . 2) (:steel-plate . 6)) ((:wagon-frame . 1)) 130 :crafting)
+               (:build-underground-belt ((:belt-part . 6)) ((:underground-belt . 2)) 65 :construction)
+               (:build-filter-splitter ((:belt-part . 5) (:sensor . 1)) ((:filter-splitter . 1)) 80 :construction)
+               (:build-stack-inserter ((:inserter-part . 3) (:motor . 1)) ((:stack-inserter . 1)) 75 :construction)
+               (:build-loader ((:belt-part . 8) (:motor . 2)) ((:loader . 1)) 100 :construction)
+               (:build-boiler ((:steel-plate . 5) (:pipe . 4)) ((:boiler . 1)) 90 :construction)
+               (:build-circuit-sensor ((:sensor . 2) (:steel-plate . 1)) ((:circuit-sensor . 1)) 60 :construction)
+               (:build-arithmetic-combinator ((:circuit . 4) (:processor . 1)) ((:arithmetic-combinator . 1)) 75 :construction)
+               (:build-decider-combinator ((:circuit . 4) (:sensor . 2)) ((:decider-combinator . 1)) 75 :construction)
+               (:build-chain-signal ((:rail-chain-controller . 1) (:steel-plate . 1)) ((:chain-signal . 1)) 60 :construction)))
+    (destructuring-bind (id entradas saidas duracao categoria) r
+      (defrecipe id :inputs entradas :outputs saidas :duration duracao
+                 :category categoria))))
 
 (defun registrar-construcoes ()
   (dolist (b '((:core :core (48 220 205) nil 0) (:belt :logistics (214 166 55) ((:iron-plate . 1)) 1)
@@ -180,7 +248,29 @@
                (:hive-launcher :weapon (255 73 149) ((:steel-plate . 30) (:processor . 10)) 40)))
     (destructuring-bind (id categoria cor custo energia) b
       (defbuilding id :name (string-capitalize (substitute #\Space #\- (string id)))
-        :category categoria :color cor :cost custo :power energia))))
+        :category categoria :color cor :cost custo :power energia)))
+  (dolist (b '((:underground-belt :logistics ((:belt-part . 6)) 2 (1 . 1) (:item-in :item-out) (:belt :underground))
+               (:filter-splitter :logistics ((:belt-part . 5) (:sensor . 1)) 3 (2 . 1) (:item-in :item-out-a :item-out-b) (:belt :filter))
+               (:stack-inserter :logistics ((:inserter-part . 3) (:motor . 1)) 4 (1 . 1) (:item-in :item-out) (:inserter :stacking))
+               (:loader :logistics ((:belt-part . 8) (:motor . 2)) 5 (2 . 1) (:item-in-a :item-in-b :item-out) (:belt :loader))
+               (:boiler :power ((:steel-plate . 5) (:pipe . 4)) -22 (2 . 2) (:fluid-in :steam-out) (:generator :fluid))
+               (:directional-pump :fluid ((:pump-unit . 1) (:pipe . 2)) 5 (1 . 1) (:fluid-in :fluid-out) (:pump :directional))
+               (:circuit-sensor :circuit ((:sensor . 2) (:steel-plate . 1)) 2 (1 . 1) (:signal-out) (:sensor))
+               (:arithmetic-combinator :circuit ((:circuit . 4) (:processor . 1)) 2 (1 . 1) (:signal-in :signal-out) (:combinator :arithmetic))
+               (:decider-combinator :circuit ((:circuit . 4) (:sensor . 2)) 2 (1 . 1) (:signal-in :signal-out) (:combinator :decider))
+               (:chain-signal :rail ((:rail-chain-controller . 1)) 1 (1 . 1) (:rail-block :signal-in) (:rail :chain-signal))
+               (:curved-rail :rail ((:rail-part . 4)) 0 (2 . 2) (:rail-a :rail-b) (:rail :curve))
+               (:diagonal-crossing :rail ((:rail-part . 8)) 0 (2 . 2) (:rail-a :rail-b :rail-c :rail-d) (:rail :crossing))
+               (:construction-roboport :logistics ((:steel-plate . 10) (:robot-brain . 2)) 18 (2 . 2) (:power :logistic) (:drone :construction))
+               (:logistics-roboport :logistics ((:steel-plate . 12) (:robot-brain . 3)) 22 (2 . 2) (:power :logistic) (:drone :logistics))
+               (:scrubber :ecology ((:pollution-filter . 4) (:motor . 2)) 16 (2 . 2) (:power :filter) (:ecology :pollution-sink))
+               (:supply-depot :rail ((:reinforced-concrete . 8) (:motor . 3)) 8 (3 . 2) (:rail :item-in :fluid-in :signal-in) (:rail :station :supply))))
+    (destructuring-bind (id categoria custo energia footprint portas tags) b
+      (defbuilding id :name (string-capitalize (substitute #\Space #\- (string id)))
+        :category categoria :color '(132 151 160) :cost custo :power energia
+        :footprint footprint :ports portas :render-layers '(:base :machine :status)
+        :circuit-connectors (when (member :signal-in portas) '(:red :green))
+        :tags tags))))
 
 (defun registrar-tecnologias ()
   (loop for (id nome custo desbloqueios prereq) in
@@ -209,7 +299,22 @@
       (:military-logistics "Military logistics" 130 (:piercing-magazine) (:railway :defense))
       (:hive-assault "Hive assault" 250 (:hive-charge :hive-launcher) (:plasma :rocketry :military-logistics)))
     do (deftechnology id :name nome :cost `((:science-red . ,custo))
-         :unlocks desbloqueios :prerequisites prereq)))
+         :unlocks desbloqueios :prerequisites prereq))
+  (loop for (id nome custo desbloqueios prereq ramo) in
+    '((:bulk-logistics "Bulk logistics" 110 (:underground-belt :filter-splitter :stack-inserter :loader) (:logistics :advanced-circuits) :logistics)
+      (:fluid-pressure "Fluid pressure control" 90 (:directional-pump :coolant) (:fluids) :energy)
+      (:power-storage "Grid storage" 105 (:boiler :accumulator-cell) (:electricity :fluids) :energy)
+      (:circuit-networks "Circuit networks" 115 (:circuit-sensor :arithmetic-combinator :decider-combinator :wire-red :wire-green) (:systems-science) :logistics)
+      (:automated-trains "Automated trains" 135 (:locomotive-frame :wagon-frame :supply-depot) (:railway :systems-science) :logistics)
+      (:chain-signals "Chain signalling" 145 (:chain-signal :curved-rail :diagonal-crossing) (:rail-signals :automated-trains) :logistics)
+      (:remote-construction "Remote construction" 150 (:construction-roboport :construction-drone) (:drones :circuit-networks) :logistics)
+      (:ecological-industry "Ecological industry" 100 (:pollution-filter :scrubber) (:oil :solar) :ecology)
+      (:restoration "Biome restoration" 160 (:restoration-seed) (:ecological-industry :drones) :ecology)
+      (:artillery-support "Rail artillery support" 180 (:artillery-shell) (:rocketry :automated-trains) :defense)
+      (:megabase-logistics "Megabase logistics" 220 (:logistics-roboport :precision-gear) (:bulk-logistics :chain-signals :remote-construction) :logistics)
+      (:planetary-stewardship "Planetary stewardship" 260 (:sandbox-restoration-goal) (:restoration :megabase-logistics :hive-assault) :ecology))
+    do (deftechnology id :name nome :cost `((:science-purple . ,custo))
+         :unlocks desbloqueios :prerequisites prereq :branch ramo)))
 
 (defun registrar-traducoes ()
   (deftranslations :en
@@ -235,7 +340,10 @@
     (:miners-dry "MINERS WITHOUT RESOURCE") (:belts-blocked "BLOCKED OUTPUTS")
     (:power-satisfaction "SATISFACTION") (:mined "MINED") (:crafted "CRAFTED")
     (:moved "MOVED") (:active-machines "ACTIVE MACHINES")
-    (:undo-complete "CONSTRUCTION UNDONE") (:nothing-to-undo "NOTHING TO UNDO"))
+    (:undo-complete "CONSTRUCTION UNDONE") (:nothing-to-undo "NOTHING TO UNDO")
+    (:reward "CHAPTER REWARD") (:out-of-range "OUT OF BUILD RANGE")
+    (:occupied "TILE OCCUPIED") (:locked-building "TECHNOLOGY REQUIRED")
+    (:objective-progress "PROGRESS") (:next-reward "REWARD"))
   (deftranslations :pt
     (:title "ASTERION ASSEMBLY") (:chapter "CAPITULO ~D/9: ~A")
     (:help "WASD MOVE  ARRASTE LMB CONSTROI  RMB REMOVE  Z DESFAZ  T TECNOLOGIA")
@@ -259,7 +367,10 @@
     (:miners-dry "MINERADORES SEM RECURSO") (:belts-blocked "SAIDAS BLOQUEADAS")
     (:power-satisfaction "SATISFACAO") (:mined "MINERADO") (:crafted "PRODUZIDO")
     (:moved "MOVIDO") (:active-machines "MAQUINAS ATIVAS")
-    (:undo-complete "CONSTRUCAO DESFEITA") (:nothing-to-undo "NADA PARA DESFAZER")))
+    (:undo-complete "CONSTRUCAO DESFEITA") (:nothing-to-undo "NADA PARA DESFAZER")
+    (:reward "RECOMPENSA DO CAPITULO") (:out-of-range "FORA DO ALCANCE")
+    (:occupied "CELULA OCUPADA") (:locked-building "TECNOLOGIA NECESSARIA")
+    (:objective-progress "PROGRESSO") (:next-reward "RECOMPENSA")))
 
 (defun register-content ()
   (registrar-itens) (registrar-receitas) (registrar-construcoes)
@@ -291,7 +402,8 @@
         (/ (expt (- y cy) 2) (* raio raio))
         (* .32 (- (ruido-suave mundo x y sal 3.5) .5))) 1.0))
 
-(defun recurso-em (mundo x y)
+(defun recurso-potencial-em (mundo x y)
+  "Calcula o tipo geológico sem consultar ou alterar o estoque da jazida."
   (cond
     ((dentro-mancha-p mundo x y -5 -4 3.2 11) :iron-ore)
     ((dentro-mancha-p mundo x y 5 -4 3.0 13) :copper-ore)
@@ -300,6 +412,28 @@
     ((> (ruido-suave mundo x y 41 7.0) .79)
      (nth (min 7 (floor (* 8 (ruido-suave mundo x y 97 19.0))))
           '(:iron-ore :copper-ore :stone :coal :silica :oil :water :asterion-crystal)))))
+
+(defun quantidade-inicial-recurso (mundo x y recurso)
+  "Depósitos próximos ensinam; depósitos distantes sustentam megabases."
+  (let* ((distancia (sqrt (+ (* x x) (* y y))))
+         (variacao (floor (* 500 (resource-noise mundo x y 2111))))
+         (especial (if (member recurso '(:oil :asterion-crystal)) 650 0)))
+    (+ 420 variacao especial (floor (* 24 distancia)))))
+
+(defun recurso-em (mundo x y)
+  "Materializa deterministicamente a geologia no chunk e respeita esgotamento."
+  (let ((marcador (world-tile mundo x y)))
+    (when (zerop marcador)
+      (let ((recurso (recurso-potencial-em mundo x y)))
+        (set-world-tile mundo x y (if recurso (1+ (indice-recurso-sprite recurso)) 65535))
+        (when recurso
+          (set-chunk-resource-count mundo x y recurso
+                                    (quantidade-inicial-recurso mundo x y recurso)))))
+    (let ((recurso (and (/= (world-tile mundo x y) 65535)
+                        (nth (1- (world-tile mundo x y))
+                             '(:iron-ore :copper-ore :stone :coal :silica :oil
+                               :water :asterion-crystal)))))
+      (and recurso (plusp (chunk-resource-count mundo x y recurso)) recurso))))
 
 (defun povoar-fauna-passiva (mundo &optional (quantidade 24))
   (dotimes (i quantidade)
@@ -360,29 +494,212 @@
                         (find-building (building-kind predio)))))
            (getf (building-state predio) :powered t))))
 
+(defun transportador-p (predio)
+  (and predio (member (building-kind predio)
+                      '(:belt :fast-belt :splitter :underground-belt
+                        :filter-splitter :loader))))
+
+(defun pistas-predio (predio)
+  "Retorna as duas pistas persistentes de um transportador."
+  (or (getf (building-state predio) :belt-lanes)
+      (setf (getf (building-state predio) :belt-lanes)
+            (vector (make-belt-lane :capacity 8)
+                    (make-belt-lane :capacity 8)))))
+
+(defun transportador-com-item-p (predio)
+  (or (item-inventario-deterministico (building-inventory predio))
+      (let ((pistas (getf (building-state predio) :belt-lanes)))
+        (and pistas (loop for pista across pistas
+                          thereis (plusp (belt-lane-count pista)))))))
+
+(defun item-inventario-deterministico (inventario)
+  (let (itens)
+    (maphash (lambda (item quantidade)
+               (when (plusp quantidade) (push item itens))) inventario)
+    (first (sort itens #'string< :key #'string))))
+
+(defun inserir-em-destino (destino item &key (pista 0) (pilha 1))
+  "Insere no estado físico da esteira ou no inventário de uma máquina."
+  (when destino
+    (if (transportador-p destino)
+        (belt-lane-insert (aref (pistas-predio destino) (mod pista 2)) item
+                          :position 0 :stack pilha :min-gap 7168)
+        (progn (inventory-add (building-inventory destino) item pilha) t))))
+
+(defun registrar-vazao (predio quantidade)
+  (incf (getf (building-state predio) :flow-window 0) quantidade))
+
 (defun atualizar-energia (mundo)
   "Distribui energia uma vez por tick sem piscar construções em brownout.
 Consumidores antigos têm prioridade determinística; os demais permanecem
 visivelmente desligados até existir capacidade, em vez de alternarem a 30 Hz."
-  (let ((producao 50) (consumo 0) consumidores)
+  (let ((producao 50) (consumo 0) (capacidade 0) consumidores nos)
     (map-buildings
      (lambda (b)
        (let ((potencia (building-definition-power (find-building (building-kind b)))))
+         (push (building-id b) nos)
          (cond ((minusp potencia) (incf producao (- potencia)))
                ((plusp potencia)
                 (incf consumo potencia)
-                (push b consumidores)))))
+                (push b consumidores)))
+         (when (eq (building-kind b) :accumulator) (incf capacidade 100))))
      mundo)
-    (let ((disponivel producao))
-      (dolist (b (sort consumidores #'< :key #'building-id))
-        (let* ((potencia (building-definition-power (find-building (building-kind b))))
-               (alimentado (and (building-enabled b) (<= potencia disponivel))))
-          (setf (getf (building-state b) :powered) alimentado)
-          (when alimentado (decf disponivel potencia)))))
+    (let ((rede (ensure-power-network mundo 0 :capacity capacidade :nodes nos)))
+      (setf (power-network-generation rede) (float producao)
+            (power-network-capacity rede) (float capacidade)
+            (power-network-nodes rede) (sort nos #'<))
+      (allocate-power-network
+       rede
+       (mapcar (lambda (b)
+                 (let ((potencia (building-definition-power
+                                  (find-building (building-kind b)))))
+                   (list (building-id b)
+                         (getf (building-state b) :power-priority 0)
+                         (float potencia)
+                         (lambda (alimentado)
+                           (setf (getf (building-state b) :powered)
+                                 (and (building-enabled b) alimentado)
+                                 (getf (building-state b) :power-network) 0)))))
+               consumidores))
+      (setf (dado mundo :power-satisfaction) (power-network-satisfaction rede)))
     (setf (dado mundo :power-produced) producao
           (dado mundo :power-used) consumo
-          (dado mundo :power-satisfaction)
-          (if (zerop consumo) 1.0 (min 1.0 (/ producao (float consumo)))))))
+          (dado mundo :power-stored)
+          (power-network-stored (gethash 0 (world-power-networks mundo))))))
+
+(defparameter *tipos-fluido*
+  '(:pipe :pump :directional-pump :tank :boiler :chemical-plant :refinery))
+
+(defun componentes-cardinais (mundo tipos)
+  "Agrupa construções adjacentes em componentes de ordem estável."
+  (let (pendentes componentes)
+    (map-buildings (lambda (b) (when (member (building-kind b) tipos) (push b pendentes)))
+                   mundo)
+    (setf pendentes (sort pendentes #'< :key #'building-id))
+    (loop while pendentes do
+      (let ((fila (list (pop pendentes))) componente)
+        (loop while fila do
+          (let ((atual (pop fila)))
+            (push atual componente)
+            (dolist (d '((1 . 0) (-1 . 0) (0 . 1) (0 . -1)))
+              (let ((vizinho (building-at mundo (+ (building-x atual) (car d))
+                                           (+ (building-y atual) (cdr d)))))
+                (when (and vizinho (member vizinho pendentes :test #'eq)
+                           (member (building-kind vizinho) tipos))
+                  (setf pendentes (delete vizinho pendentes :test #'eq))
+                  (setf fila (nconc fila (list vizinho))))))))
+        (push (sort componente #'< :key #'building-id) componentes)))
+    (nreverse componentes)))
+
+(defun fluidos-no-predio (predio)
+  (remove-duplicates
+   (remove nil
+           (cons (getf (building-state predio) :fluid)
+                 (remove-if-not
+                  (lambda (item) (plusp (inventory-count (building-inventory predio) item)))
+                  '(:water :oil :lubricant :fuel :coolant))))))
+
+(defun fluido-no-predio (predio) (first (fluidos-no-predio predio)))
+
+(defun capacidade-fluido (predio)
+  (case (building-kind predio) (:tank 1000.0) ((:refinery :chemical-plant) 300.0)
+        (:boiler 250.0) (otherwise 100.0)))
+
+(defun sistema-fluidos (mundo)
+  "Monta redes de volume/pressão e bloqueia componentes com mistura."
+  (let (ativos)
+    (dolist (componente (componentes-cardinais mundo *tipos-fluido*))
+      (let* ((id (building-id (first componente)))
+             (fluidos (remove-duplicates (mapcan #'fluidos-no-predio componente)))
+             (capacidade (reduce #'+ componente :key #'capacidade-fluido)))
+        (push id ativos)
+        (if (> (length fluidos) 1)
+            (dolist (b componente) (setf (getf (building-state b) :fluid-conflict) t))
+            (let* ((fluido (first fluidos))
+                   (rede (ensure-fluid-network mundo id :fluid fluido
+                                               :capacity capacidade
+                                               :nodes (mapcar #'building-id componente))))
+              (when (and (fluid-network-fluid rede) fluido
+                         (not (eq (fluid-network-fluid rede) fluido))
+                         (plusp (fluid-network-volume rede)))
+                (dolist (b componente) (setf (getf (building-state b) :fluid-conflict) t))
+                (return))
+              (setf (fluid-network-fluid rede) fluido
+                    (fluid-network-capacity rede) capacidade
+                    (fluid-network-nodes rede) (mapcar #'building-id componente))
+              (let ((entrada 0.0))
+                (when fluido
+                  (dolist (b componente)
+                    (setf (getf (building-state b) :fluid-conflict) nil
+                          (getf (building-state b) :fluid-network) id
+                          (getf (building-state b) :fluid) fluido)
+                    (let ((qtd (inventory-count (building-inventory b) fluido)))
+                      (when (plusp qtd)
+                        (incf entrada qtd)
+                        (inventory-remove (building-inventory b) fluido qtd)))))
+                (simulate-fluid-network rede :inflow entrada)))))
+    (let (obsoletos)
+      (maphash (lambda (id rede) (declare (ignore rede))
+                 (unless (member id ativos) (push id obsoletos)))
+               (world-fluid-networks mundo))
+      (dolist (id obsoletos) (remhash id (world-fluid-networks mundo)))))))
+
+(defun sistema-circuitos (mundo)
+  "Publica sinais tipados e executa combinadores em ordem de construção."
+  (let (nos combinadores)
+    (map-buildings
+     (lambda (b)
+       (when (member (building-kind b)
+                     '(:circuit-sensor :arithmetic-combinator :decider-combinator
+                       :rail-signal :chain-signal :station :supply-depot))
+         (push (building-id b) nos)
+         (when (member (building-kind b) '(:arithmetic-combinator :decider-combinator))
+           (push b combinadores)))) mundo)
+    (let ((rede (ensure-circuit-network mundo 0 :nodes (sort nos #'<))))
+      (setf (circuit-network-nodes rede) (sort nos #'<))
+      (clear-circuit-network rede)
+      (circuit-write rede :pollution (round (world-pollution mundo)))
+      (circuit-write rede :power (round (* 100 (dado mundo :power-satisfaction 1.0))))
+      (circuit-write rede :items-moved (dado mundo :items-moved 0))
+      (dolist (b (sort combinadores #'< :key #'building-id))
+        (let* ((estado (building-state b))
+               (entrada (getf estado :input-signal :items-moved))
+               (saida (getf estado :output-signal :signal-a))
+               (valor (circuit-read rede entrada)))
+          (if (eq (building-kind b) :arithmetic-combinator)
+              (circuit-write rede saida
+                             (truncate valor (max 1 (getf estado :operand 2))))
+              (circuit-write rede saida
+                             (if (> valor (getf estado :threshold 0)) 1 0)))
+          (setf (getf estado :circuit-network) 0))))))
+
+(defun sistema-drones-construcao (mundo)
+  "Converte fantasmas cobertos por roboports em construções conservando custos."
+  (when (and (world-ghosts mundo) (zerop (mod (world-tick mundo) 30)))
+    (let ((fantasma (first (sort (copy-list (world-ghosts mundo))
+                                 (lambda (a b) (or (< (getf a :y) (getf b :y))
+                                                   (and (= (getf a :y) (getf b :y))
+                                                        (< (getf a :x) (getf b :x))))))))
+          (porto nil))
+      (map-buildings
+       (lambda (b)
+         (when (and (null porto)
+                    (member (building-kind b) '(:roboport :construction-roboport))
+                    (<= (distancia (building-x b) (building-y b)
+                                   (getf fantasma :x) (getf fantasma :y)) 14))
+           (setf porto b))) mundo)
+      (when porto
+        (let ((def (find-building (getf fantasma :kind))))
+          (when (and def (inventory-has-p (inventario-jogador mundo)
+                                          (building-definition-cost def)))
+            (dolist (custo (building-definition-cost def))
+              (inventory-remove (inventario-jogador mundo) (car custo) (cdr custo)))
+            (place-building mundo (getf fantasma :kind) (getf fantasma :x)
+                            (getf fantasma :y) :rotation (getf fantasma :rotation 0)
+                            :recipe (getf (getf fantasma :settings) :recipe))
+            (setf (world-ghosts mundo) (delete fantasma (world-ghosts mundo) :test #'eq))
+            (criar-efeito mundo :vfx-spark (+ .5 (getf fantasma :x))
+                          (+ .5 (getf fantasma :y)) :duracao 20)))))))
 
 (defun sistema-mineracao (mundo)
   (when (zerop (mod (world-tick mundo) 45))
@@ -390,73 +707,151 @@ visivelmente desligados até existir capacidade, em vez de alternarem a 30 Hz."
      (lambda (b)
        (when (and (eq (building-kind b) :miner) (predio-operacional-p b))
          (let ((recurso (recurso-em mundo (building-x b) (building-y b))))
-           (when recurso
+           (when (and recurso
+                      (plusp (deplete-resource mundo (building-x b)
+                                                (building-y b) recurso 1)))
              ;; Como em uma linha de automação legível, o minerador entrega
              ;; diretamente à porta frontal. Sem destino, conserva no buffer.
              (let* ((d (direcao (building-rotation b)))
                     (destino (building-at mundo (+ (building-x b) (car d))
                                                (+ (building-y b) (cdr d)))))
-               (inventory-add (if destino (building-inventory destino)
-                                  (building-inventory b))
-                              recurso 1))
+               (unless (inserir-em-destino destino recurso
+                                           :pista (mod (building-id b) 2))
+                 (inventory-add (building-inventory b) recurso 1)))
              (incf (dado mundo :items-mined 0))
              (incf (world-pollution mundo) 0.8))))) mundo)))
 
 (defun transferir-um (origem destino &optional mundo)
-  (let ((movido nil))
-    (maphash (lambda (item qtd)
-               (when (and (null movido) (> qtd 0))
-                 (inventory-remove origem item 1) (inventory-add destino item 1)
-                 (setf movido item)
-                 (when mundo (incf (dado mundo :items-moved 0))))) origem) movido))
+  (let ((movido (item-inventario-deterministico origem)))
+    (when movido
+      (inventory-remove origem movido 1)
+      (inventory-add destino movido 1)
+      (when mundo (incf (dado mundo :items-moved 0))))
+    movido))
+
+(defun alimentar-pistas-do-buffer (predio)
+  "Adapta máquinas e saves antigos sem duplicar itens agregados."
+  (let ((item (item-inventario-deterministico (building-inventory predio))))
+    (when item
+      (let* ((pistas (pistas-predio predio))
+             (preferida (mod (getf (building-state predio) :input-lane 0) 2)))
+        (loop for pista in (list preferida (mod (1+ preferida) 2))
+              when (belt-lane-insert (aref pistas pista) item :position 0
+                                     :min-gap 7168)
+                do (inventory-remove (building-inventory predio) item 1)
+                   (setf (getf (building-state predio) :input-lane)
+                         (mod (1+ pista) 2))
+                   (return t))))))
+
+(defun destino-transportador (mundo predio indice-pista)
+  (cond
+    ((member (building-kind predio) '(:splitter :filter-splitter))
+      (let* ((saidas (saidas-divisor predio))
+             (item (let* ((pista (aref (pistas-predio predio) indice-pista))
+                          (i (1- (belt-lane-count pista))))
+                     (and (>= i 0) (aref (belt-lane-items pista) i))))
+             (filtro (getf (building-state predio) :filter))
+             (preferida (if (and (eq (building-kind predio) :filter-splitter) filtro)
+                            (if (eq item filtro) 0 1)
+                            (mod (+ (getf (building-state predio) :next-output 0)
+                                    indice-pista) 2)))
+             (posicao (nth preferida saidas)))
+        (values (building-at mundo (car posicao) (cdr posicao)) preferida)))
+    ((eq (building-kind predio) :underground-belt)
+     (let* ((d (direcao (building-rotation predio)))
+            (par (loop for distancia from 1 to 5
+                       for candidato = (building-at
+                                        mundo
+                                        (+ (building-x predio) (* distancia (car d)))
+                                        (+ (building-y predio) (* distancia (cdr d))))
+                       when (and candidato (eq (building-kind candidato)
+                                               :underground-belt)
+                                 (= (building-rotation candidato)
+                                    (building-rotation predio)))
+                         return candidato)))
+       (values (or par (building-at mundo (+ (building-x predio) (car d))
+                                    (+ (building-y predio) (cdr d))))
+               indice-pista)))
+    (t
+     (let ((d (direcao (building-rotation predio))))
+       (values (building-at mundo (+ (building-x predio) (car d))
+                            (+ (building-y predio) (cdr d))) indice-pista)))))
+
+(defun transferir-frente-pista (mundo predio indice-pista)
+  "Transfere quando a posição real chegou à borda e o destino aceitou."
+  (let* ((pista (aref (pistas-predio predio) indice-pista))
+         (indice (1- (belt-lane-count pista))))
+    (when (and (>= indice 0)
+               (= (aref (belt-lane-positions pista) indice) 65535))
+      (let ((item (aref (belt-lane-items pista) indice))
+            (pilha (aref (belt-lane-stacks pista) indice)))
+        (multiple-value-bind (destino saida)
+            (destino-transportador mundo predio indice-pista)
+          (when (inserir-em-destino destino item :pista indice-pista :pilha pilha)
+            (belt-lane-remove-front pista)
+            (registrar-vazao predio pilha)
+            (incf (dado mundo :items-moved 0) pilha)
+            (when (member (building-kind predio) '(:splitter :filter-splitter))
+              (setf (getf (building-state predio) :next-output)
+                    (mod (1+ saida) 2)))
+            t))))))
 
 (defun sistema-logistica (mundo)
-  (when (zerop (mod (world-tick mundo) 8))
-    (let (predios) (map-buildings (lambda (b) (push b predios)) mundo)
-      (dolist (b (sort predios #'> :key #'building-id))
-        (case (building-kind b)
-          ((:belt :fast-belt)
-           (when (predio-operacional-p b)
-             (let* ((d (direcao (building-rotation b)))
-                    (alvo (building-at mundo (+ (building-x b) (car d))
-                                       (+ (building-y b) (cdr d)))))
-               (when alvo (transferir-um (building-inventory b) (building-inventory alvo) mundo)))))
-          (:splitter
-           (when (predio-operacional-p b)
-             (let* ((saidas (saidas-divisor b))
-                    (preferida (mod (getf (building-state b) :next-output 0) 2))
-                    (ordem (list preferida (mod (1+ preferida) 2)))
-                    (transferido nil))
-               (dolist (indice ordem)
-                 (unless transferido
-                   (let* ((posicao (nth indice saidas))
-                          (alvo (building-at mundo (car posicao) (cdr posicao))))
-                     (when alvo
-                       (setf transferido
-                             (transferir-um (building-inventory b)
-                                            (building-inventory alvo) mundo))
-                       (when transferido
-                         (setf (getf (building-state b) :next-output)
-                               (mod (1+ indice) 2))))))))))
-          ((:inserter :long-inserter)
-           (when (predio-operacional-p b)
-             (let* ((d (direcao (building-rotation b)))
-                    (dist (if (eq (building-kind b) :long-inserter) 2 1))
-                    (origem (building-at mundo (- (building-x b) (* (car d) dist))
-                                         (- (building-y b) (* (cdr d) dist))))
-                    (alvo (building-at mundo (+ (building-x b) (* (car d) dist))
-                                       (+ (building-y b) (* (cdr d) dist)))))
-               (when (and origem alvo)
-                 (let ((item (transferir-um (building-inventory origem)
-                                             (building-inventory alvo) mundo)))
-                   (when item
-                     (setf (getf (building-state b) :carried-item) item
-                           (getf (building-state b) :carry-start) (world-tick mundo))))))))))
-      ;; Tudo que chega ao núcleo torna-se material de construção do jogador.
-      (let ((core (nucleo mundo)))
-        (when core
-          (loop while (transferir-um (building-inventory core)
-                                     (inventario-jogador mundo) mundo)))))))
+  (let (predios)
+    (map-buildings (lambda (b) (push b predios)) mundo)
+    ;; Processar jusante antes de montante impede pulsos visuais e preserva
+    ;; a mesma ordem em qualquer implementação de hash-table.
+    (dolist (b (sort predios #'> :key #'building-id))
+      (case (building-kind b)
+        ((:belt :fast-belt :splitter :underground-belt :filter-splitter :loader)
+         (when (predio-operacional-p b)
+           (alimentar-pistas-do-buffer b)
+           (dotimes (pista 2)
+             (advance-belt-lane
+              (aref (pistas-predio b) pista)
+              (case (building-kind b)
+                ((:fast-belt :underground-belt) 16384) (:loader 32768)
+                (otherwise 8192))))
+           (dotimes (pista 2) (transferir-frente-pista mundo b pista))))
+        ((:inserter :long-inserter :stack-inserter)
+         (when (predio-operacional-p b)
+           (let* ((d (direcao (building-rotation b)))
+                  (dist (if (eq (building-kind b) :long-inserter) 2 1))
+                  (origem (building-at mundo (- (building-x b) (* (car d) dist))
+                                       (- (building-y b) (* (cdr d) dist))))
+                  (alvo (building-at mundo (+ (building-x b) (* (car d) dist))
+                                     (+ (building-y b) (* (cdr d) dist)))))
+             (when (and origem alvo (zerop (mod (world-tick mundo) 8)))
+               (dotimes (transferencia (if (eq (building-kind b) :stack-inserter) 4 1))
+                 (declare (ignore transferencia))
+               (let ((item (if (transportador-p origem)
+                               (multiple-value-bind (i pilha presente)
+                                   (belt-lane-remove-front
+                                    (aref (pistas-predio origem)
+                                          (mod (building-id b) 2)) :threshold 0)
+                                 (declare (ignore pilha)) (and presente i))
+                               (item-inventario-deterministico
+                                (building-inventory origem)))))
+                 (when item
+                   (unless (transportador-p origem)
+                     (inventory-remove (building-inventory origem) item 1))
+                   (if (inserir-em-destino alvo item
+                                           :pista (mod (building-id b) 2))
+                       (progn
+                         (incf (dado mundo :items-moved 0))
+                         (setf (getf (building-state b) :carried-item) item
+                               (getf (building-state b) :carry-start)
+                               (world-tick mundo)))
+                       (inventory-add (building-inventory origem) item 1)))))))))
+      (when (and (transportador-p b) (zerop (mod (world-tick mundo) 30)))
+        (setf (getf (building-state b) :flow-rate)
+              (getf (building-state b) :flow-window 0)
+              (getf (building-state b) :flow-window) 0)))
+    ;; Tudo que chega ao núcleo torna-se material de construção do jogador.
+    (let ((core (nucleo mundo)))
+      (when core
+        (loop while (transferir-um (building-inventory core)
+                                   (inventario-jogador mundo) mundo)))))))
 
 (defun receita-padrao (kind)
   (case kind (:stone-furnace :smelt-iron) (:electric-furnace :smelt-steel)
@@ -494,8 +889,7 @@ visivelmente desligados até existir capacidade, em vez de alternarem a 30 Hz."
          (when (and (eq (building-kind b) :miner)
                     (null (recurso-em mundo (building-x b) (building-y b))))
            (incf mineradores-secos))
-         (when (and (member (building-kind b) '(:belt :fast-belt :splitter))
-                    (primeiro-item-visivel (building-inventory b)))
+         (when (and (transportador-p b) (transportador-com-item-p b))
            (let ((saidas (if (eq (building-kind b) :splitter)
                              (saidas-divisor b)
                              (let ((d (direcao (building-rotation b))))
@@ -634,6 +1028,71 @@ visivelmente desligados até existir capacidade, em vez de alternarem a 30 Hz."
 (defparameter *capitulos*
   #("LANDFALL" "METALS" "AUTOMATION" "FLUIDS" "RESEARCH" "RAILWAYS"
     "SIGNALS AND DRONES" "WAR INDUSTRY" "HIVE ASSAULT"))
+(defparameter *capitulos-pt*
+  #("POUSO" "METAIS" "AUTOMACAO" "FLUIDOS" "PESQUISA" "FERROVIAS"
+    "SINAIS E DRONES" "INDUSTRIA BELICA" "ATAQUE A COLMEIA"))
+
+(defun nome-capitulo (indice)
+  (aref (if (eq (current-language) :pt) *capitulos-pt* *capitulos*) indice))
+
+(defun notificar (mundo texto &key (duracao 150) (cor '(112 245 220 255)))
+  "Enfileira feedback sem substituir outras mensagens importantes."
+  (let ((entrada (list :text texto :until (+ (world-tick mundo) duracao) :color cor)))
+    (setf (dado mundo :notifications)
+          (subseq (cons entrada (dado mundo :notifications nil))
+                  0 (min 4 (1+ (length (dado mundo :notifications nil))))))
+    entrada))
+
+(defparameter *recompensas-capitulos*
+  '((( :iron-plate . 35) (:copper-plate . 25))
+    ((:gear . 24) (:belt-part . 30))
+    ((:science-red . 25) (:circuit . 20))
+    ((:pipe . 30) (:steel-plate . 20))
+    ((:rail-part . 100) (:signal-part . 12))
+    ((:processor . 12) (:logistic-drone . 4))
+    ((:rocket . 20) (:repair-pack . 20))
+    ((:hive-charge . 2) (:plasma-cell . 20))))
+
+(defun texto-itens (itens)
+  (format nil "~{~A x~D~^  +  ~}"
+          (loop for (item . qtd) in itens
+                append (list (string-upcase (subseq (string item) 1)) qtd))))
+
+(defun conceder-recompensa-capitulo (mundo capitulo)
+  (let ((itens (nth (1- capitulo) *recompensas-capitulos*)))
+    (when itens
+      (dolist (par itens) (inventory-add (inventario-jogador mundo) (car par) (cdr par)))
+      (notificar mundo (format nil "~A: ~A" (translate :reward) (texto-itens itens))
+                 :duracao 270 :cor '(244 190 79 255)))))
+
+(defun objetivo-capitulo (mundo)
+  "Retorna descrição, progresso, alvo e recompensa do capítulo corrente."
+  (let ((c (dado mundo :chapter 1)))
+    (multiple-value-bind (texto atual alvo)
+        (case c
+          (1 (values (if (eq (current-language) :pt) "CONSTRUA 2 MINERADORES" "BUILD 2 MINERS")
+                     (quantidade-tipo mundo :miner) 2))
+          (2 (values (if (eq (current-language) :pt) "OPERE 2 FORNALHAS" "OPERATE 2 FURNACES")
+                     (quantidade-tipo mundo :stone-furnace) 2))
+          (3 (values (if (eq (current-language) :pt) "MONTE UMA MONTADORA" "BUILD AN ASSEMBLER")
+                     (quantidade-tipo mundo :assembler) 1))
+          (4 (values (if (eq (current-language) :pt) "CONECTE 6 PECAS DE FLUIDO" "CONNECT 6 FLUID PARTS")
+                     (+ (quantidade-tipo mundo :pipe) (quantidade-tipo mundo :pump)) 6))
+          (5 (values (if (eq (current-language) :pt) "ATIVE UM LABORATORIO" "ACTIVATE A LABORATORY")
+                     (quantidade-tipo mundo :laboratory) 1))
+          (6 (values (if (eq (current-language) :pt) "ASSENTE 20 TRILHOS" "LAY 20 RAIL SEGMENTS")
+                     (quantidade-tipo mundo :rail) 20))
+          (7 (values (if (eq (current-language) :pt) "LIGUE SINAIS E ROBOPORT" "CONNECT SIGNALS AND A ROBOPORT")
+                     (+ (quantidade-tipo mundo :rail-signal) (quantidade-tipo mundo :roboport)) 2))
+          (8 (values (if (eq (current-language) :pt) "FORTIFIQUE COM 2 TORRES" "DEPLOY 2 ADVANCED TURRETS")
+                     (+ (quantidade-tipo mundo :rocket-turret)
+                        (quantidade-tipo mundo :plasma-turret)) 2))
+          (otherwise
+           (values (if (eq (current-language) :pt) "LOCALIZE E DESTRUA A COLMEIA"
+                       "LOCATE AND DESTROY THE CENTRAL HIVE")
+                   (if (dado mundo :sandbox) 1 0) 1)))
+      (values texto (min atual alvo) alvo
+              (and (< c 9) (nth (1- c) *recompensas-capitulos*))))))
 (defun quantidade-tipo (mundo tipo)
   (let ((n 0)) (map-buildings (lambda (b) (when (eq (building-kind b) tipo) (incf n))) mundo) n))
 (defun avancar-capitulo (mundo)
@@ -647,8 +1106,11 @@ visivelmente desligados até existir capacidade, em vez de alternarem a 30 Hz."
               (6 (>= (quantidade-tipo mundo :rail) 20))
               (7 (>= (+ (quantidade-tipo mundo :rail-signal) (quantidade-tipo mundo :roboport)) 2))
               (8 (>= (+ (quantidade-tipo mundo :rocket-turret) (quantidade-tipo mundo :plasma-turret)) 2))))
+      (conceder-recompensa-capitulo mundo c)
       (incf (dado mundo :chapter))
-      (setf (dado mundo :message) (format nil "NEW CHAPTER: ~A" (aref *capitulos* c))
+      (setf (dado mundo :message)
+            (format nil "~A: ~A" (if (eq (current-language) :pt) "NOVO CAPITULO" "NEW CHAPTER")
+                    (nome-capitulo c))
             (dado mundo :message-until) (+ (world-tick mundo) 240)))
     (when (and (= (dado mundo :chapter 1) 9) (not (dado mundo :hive-spawned)))
       (spawn-entity mundo :hive 42 37 :hp 5000 :data '(:objective t))
@@ -676,7 +1138,11 @@ visivelmente desligados até existir capacidade, em vez de alternarem a 30 Hz."
                 (technology-definition-prerequisites tecnologia)))))
 
 (defun custo-tecnologia (tecnologia)
-  (or (cdr (assoc :science-red (technology-definition-cost tecnologia))) 1))
+  "Aceita qualquer pacote científico declarado pela tecnologia."
+  (or (cdr (first (technology-definition-cost tecnologia))) 1))
+
+(defun item-ciencia-tecnologia (tecnologia)
+  (or (car (first (technology-definition-cost tecnologia))) :science-red))
 
 (defun selecionar-pesquisa (mundo id)
   (when (tecnologia-disponivel-p mundo id)
@@ -704,7 +1170,7 @@ visivelmente desligados até existir capacidade, em vez de alternarem a 30 Hz."
            (tecnologia (and proxima (find-technology proxima)))
            (inv (inventario-jogador mundo)))
       (when (and tecnologia (tecnologia-disponivel-p mundo proxima)
-                 (inventory-remove inv :science-red 1))
+                 (inventory-remove inv (item-ciencia-tecnologia tecnologia) 1))
         (incf (dado mundo :research-progress 0))
         (when (>= (dado mundo :research-progress) (custo-tecnologia tecnologia))
           (push proxima (world-research mundo))
@@ -747,11 +1213,24 @@ visivelmente desligados até existir capacidade, em vez de alternarem a 30 Hz."
                   (when (zerop (getf dados :index)) (setf (getf dados :phase) 0)))))))))))
 
 (defun registrar-sistemas ()
-  (defsystem :efeitos (:priority 5) (mundo) (sistema-efeitos mundo))
-  (defsystem :energia (:priority 7) (mundo) (atualizar-energia mundo))
-  (defsystem :mineracao (:priority 10) (mundo) (sistema-mineracao mundo))
-  (defsystem :logistica (:priority 20) (mundo) (sistema-logistica mundo))
-  (defsystem :producao (:priority 30) (mundo) (sistema-producao mundo))
+  (defsystem :efeitos (:priority 5 :phase :pre-simulation
+                       :reads (:entities) :writes (:entities))
+    (mundo) (sistema-efeitos mundo))
+  (defsystem :energia (:priority 7 :reads (:buildings) :writes (:power-networks))
+    (mundo) (atualizar-energia mundo))
+  (defsystem :fluidos (:priority 8 :reads (:buildings) :writes (:fluid-networks))
+    (mundo) (sistema-fluidos mundo))
+  (defsystem :circuitos (:priority 9 :reads (:power-networks :buildings)
+                         :writes (:circuit-networks))
+    (mundo) (sistema-circuitos mundo))
+  (defsystem :mineracao (:priority 10 :reads (:chunks) :writes (:chunks :belts))
+    (mundo) (sistema-mineracao mundo))
+  (defsystem :logistica (:priority 20 :reads (:buildings) :writes (:belts :inventories))
+    (mundo) (sistema-logistica mundo))
+  (defsystem :producao (:priority 30 :reads (:recipes) :writes (:inventories))
+    (mundo) (sistema-producao mundo))
+  (defsystem :drones (:priority 32 :reads (:ghosts) :writes (:buildings :ghosts))
+    (mundo) (sistema-drones-construcao mundo))
   (defsystem :alertas-fabrica (:priority 35) (mundo) (atualizar-alertas-fabrica mundo))
   (defsystem :fauna (:priority 40) (mundo) (sistema-fauna mundo))
   (defsystem :ecossistema (:priority 45) (mundo) (sistema-ecossistema mundo))
@@ -780,7 +1259,22 @@ visivelmente desligados até existir capacidade, em vez de alternarem a 30 Hz."
     (:wall-part . 42) (:solar-cell . 43) (:accumulator-cell . 44)
     (:crystal-analysis . 45)))
 
-(defun sprite-item (item) (cdr (assoc item *sprites-itens*)))
+(defparameter *sprites-itens-v2*
+  '((:tungsten-ore . 0) (:cobalt-ore . 1) (:biomass . 2)
+    (:tungsten-plate . 3) (:cobalt-plate . 4) (:concrete . 5)
+    (:reinforced-concrete . 6) (:motor . 7) (:precision-gear . 8)
+    (:pump-unit . 9) (:sensor . 10) (:wire-red . 11) (:wire-green . 12)
+    (:robot-brain . 13) (:construction-drone . 14) (:fluid-canister . 15)
+    (:coolant . 16) (:explosives . 17) (:rail-chain-controller . 18)
+    (:pollution-filter . 19) (:restoration-seed . 20) (:artillery-shell . 21)
+    (:locomotive-frame . 22) (:wagon-frame . 23)))
+
+(defun sprite-item (item)
+  (or (cdr (assoc item *sprites-itens*))
+      (cdr (assoc item *sprites-itens-v2*))))
+
+(defun folha-item (item)
+  (if (assoc item *sprites-itens-v2*) :items-v2 :items))
 
 (defun primeiro-item-visivel (inventario)
   "Escolhe deterministicamente um item presente apenas para apresentação."
@@ -804,8 +1298,20 @@ visivelmente desligados até existir capacidade, em vez de alternarem a 30 Hz."
     (:laser-turret . 30) (:rocket-turret . 31) (:plasma-turret . 32)
     (:radar . 33) (:repair-bay . 34) (:hive-launcher . 35)))
 
+(defparameter *sprites-construcoes-v2*
+  '((:underground-belt . 0) (:filter-splitter . 1) (:stack-inserter . 2)
+    (:loader . 3) (:boiler . 4) (:directional-pump . 5)
+    (:circuit-sensor . 6) (:arithmetic-combinator . 7)
+    (:decider-combinator . 8) (:chain-signal . 9) (:curved-rail . 10)
+    (:diagonal-crossing . 11) (:construction-roboport . 12)
+    (:logistics-roboport . 13) (:scrubber . 14) (:supply-depot . 15)))
+
 (defun sprite-construcao (kind)
-  (or (cdr (assoc kind *sprites-construcoes*)) 3))
+  (or (cdr (assoc kind *sprites-construcoes*))
+      (cdr (assoc kind *sprites-construcoes-v2*)) 3))
+
+(defun folha-construcao (kind)
+  (if (assoc kind *sprites-construcoes-v2*) :buildings-v2 :buildings))
 
 (defun sprite-unidade (kind)
   (case kind (:commander-drone 0) (:logistic-drone 1) (:repair-drone 2)
@@ -873,15 +1379,33 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
        (:basalt-wastes 0) (:crystal-grove 2) (:luminous-marsh 4) (:ashlands 6))
      (if (> (resource-noise mundo x y 1009) .5) 1 0)))
 
-(defun indice-prop-ambiental (mundo x y)
-  (when (and (> (resource-noise mundo x y 1031) .935)
-             (> (+ (abs x) (abs y)) 4))
-    (let ((n (resource-noise mundo x y 1063)))
-      (case (bioma-em mundo x y)
-        (:crystal-grove (+ 8 (floor (* 16 n))))
-        (:luminous-marsh (+ 8 (floor (* 24 n))))
-        (:basalt-wastes (+ 24 (floor (* 8 n))))
-        (:ashlands (+ 32 (floor (* 16 n))))))))
+(defun tinta-terreno (mundo x y)
+  "Contém a saturação do piso para recursos e estados continuarem dominantes."
+  (case (bioma-em mundo x y)
+    (:crystal-grove '(154 174 174)) (:luminous-marsh '(135 169 166))
+    (:basalt-wastes '(151 158 166)) (:ashlands '(174 151 139))))
+
+(defun prop-ambiental (mundo x y)
+  "Retorna índice e tamanho; ruínas são marcos raros, vegetação forma silhuetas."
+  (when (> (+ (abs x) (abs y)) 5)
+    (let ((densidade (resource-noise mundo x y 1031))
+          (variante (resource-noise mundo x y 1063))
+          (ruina (resource-noise mundo x y 1091)))
+      (cond
+        ((and (> (+ (abs x) (abs y)) 14) (> ruina .986))
+         (values (+ 8 (min 5 (floor (* variante 6)))) 62))
+        ((and (> (world-pollution mundo) 180) (> densidade .968))
+         (values 15 54))
+        ((and (< (world-pollution mundo) 80) (> densidade .984))
+         (values 14 54))
+        ((> densidade .952)
+         (values
+          (case (bioma-em mundo x y)
+            (:crystal-grove (if (> variante .55) 5 3))
+            (:luminous-marsh (if (> variante .5) 6 0))
+            (:basalt-wastes (if (> variante .62) 2 4))
+            (:ashlands (if (> variante .72) 7 2)))
+          (if (> variante .55) 58 46)))))))
 
 (defun visivel-no-mundo-p (x y &optional (margem 96))
   (multiple-value-bind (sx sy) (world-to-screen x y)
@@ -890,33 +1414,30 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
 
 (defun desenhar-item (item x y &optional (tamanho 15))
   (let ((indice (sprite-item item)))
-    (when indice (draw-sprite :items indice x y tamanho tamanho :world t))))
+    (when indice (draw-sprite (folha-item item) indice x y tamanho tamanho :world t))))
 
 (defun desenhar-item-em-transito (b mundo x y)
   "Projeta itens reais dos inventários nas portas e transportadores."
   (let* ((kind (building-kind b)) (tick (world-tick mundo))
          (d (direcao (building-rotation b))))
     (cond
-      ((eq kind :splitter)
-       (let ((item (primeiro-item-visivel (building-inventory b))))
-         (when item
-           (let* ((indice (mod (getf (building-state b) :next-output 0) 2))
-                  (saida (nth indice (saidas-divisor b)))
-                  (dx (- (car saida) (building-x b)))
-                  (dy (- (cdr saida) (building-y b)))
-                  (frac (/ (mod tick 8) 8.0)))
-             (desenhar-item item (+ x 9 (* dx 14 frac))
-                            (+ y 9 (* dy 14 frac)) 14)))))
-      ((member kind '(:belt :fast-belt))
-       (let ((item (primeiro-item-visivel (building-inventory b))))
-         (when item
-           (let* ((periodo (if (eq kind :fast-belt) 4 8))
-                  (frac (/ (mod tick periodo) (float periodo)))
-                  (deslocamento (+ -14 (* 28 frac))))
-             (desenhar-item item
-                            (+ x 9 (* (car d) deslocamento))
-                            (+ y 9 (* (cdr d) deslocamento)) 14)))))
-      ((member kind '(:inserter :long-inserter))
+      ((member kind '(:belt :fast-belt :splitter :underground-belt
+                      :filter-splitter :loader))
+       ;; A posição desenhada é a posição inteira da simulação. Não há relógio
+       ;; visual independente, portanto congestionamento e brownout não piscam.
+       (let ((pistas (pistas-predio b))
+             (px (- (cdr d))) (py (car d)))
+         (dotimes (lado 2)
+           (let ((pista (aref pistas lado))
+                 (lateral (if (zerop lado) -5 5)))
+             (dotimes (indice (belt-lane-count pista))
+               (let* ((item (aref (belt-lane-items pista) indice))
+                      (frac (/ (aref (belt-lane-positions pista) indice) 65535.0))
+                      (deslocamento (+ -13 (* 26 frac))))
+                 (desenhar-item item
+                                (+ x 9 (* (car d) deslocamento) (* px lateral))
+                                (+ y 9 (* (cdr d) deslocamento) (* py lateral)) 12)))))))
+      ((member kind '(:inserter :long-inserter :stack-inserter))
        (let* ((item (getf (building-state b) :carried-item))
               (inicio (getf (building-state b) :carry-start -100))
               (idade (- tick inicio)))
@@ -966,7 +1487,7 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
          (draw-sprite :terrain 15 x y 32 32 :world world :angle angulo
                       :opacity opacity :tint tint))
         (t
-         (draw-sprite :buildings (sprite-construcao kind) (- x 7) (- y 10)
+         (draw-sprite (folha-construcao kind) (sprite-construcao kind) (- x 7) (- y 10)
                       46 46 :world world :angle angulo :opacity opacity :tint tint)))
       (when (and world game-world)
         (desenhar-item-em-transito b game-world x y))
@@ -997,8 +1518,7 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
       ((and (eq kind :miner)
             (null (recurso-em mundo (building-x predio) (building-y predio))))
        :no-resource)
-      ((and (member kind '(:belt :fast-belt :splitter))
-            (primeiro-item-visivel (building-inventory predio)))
+      ((and (transportador-p predio) (transportador-com-item-p predio))
        (let ((saidas (if (eq kind :splitter)
                          (saidas-divisor predio)
                          (let ((d (direcao (building-rotation predio))))
@@ -1049,7 +1569,7 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
                (- (- y1 (* dy 5)) (* py 4)) cor :world t)))
 
 (defun desenhar-seta-fluxo (predio cor)
-  (if (eq (building-kind predio) :splitter)
+  (if (member (building-kind predio) '(:splitter :filter-splitter))
       (let* ((rotacao (building-rotation predio))
              (ramal (mod (1+ rotacao) 4)))
         (desenhar-seta-fluxo-em (building-x predio) (building-y predio) rotacao cor)
@@ -1064,12 +1584,13 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
       (let ((x (* (building-x foco) +tamanho-celula+))
             (y (* (building-y foco) +tamanho-celula+)))
         (draw-rect x y 32 32 '(245 211 91 255) :world t :outline t))
-      (when (member (building-kind foco) '(:belt :fast-belt :splitter
-                                           :inserter :long-inserter))
+      (when (or (transportador-p foco)
+                (member (building-kind foco) '(:inserter :long-inserter :stack-inserter)))
         (map-buildings
          (lambda (b)
-           (when (and (member (building-kind b) '(:belt :fast-belt :splitter
-                                                  :inserter :long-inserter))
+           (when (and (or (transportador-p b)
+                          (member (building-kind b)
+                                  '(:inserter :long-inserter :stack-inserter)))
                       (visivel-no-mundo-p (* (building-x b) +tamanho-celula+)
                                           (* (building-y b) +tamanho-celula+)))
              (desenhar-seta-fluxo b (if (predio-operacional-p b)
@@ -1089,7 +1610,8 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
              (itens (itens-inventario-visiveis (building-inventory b))))
         (draw-rect x y largura altura '(4 10 17 248))
         (draw-rect x y largura altura cor :outline t)
-        (draw-sprite :buildings (sprite-construcao (building-kind b))
+        (draw-sprite (folha-construcao (building-kind b))
+                     (sprite-construcao (building-kind b))
                      (+ x 12) (+ y 12) 48 48)
         (draw-text (subseq (string-upcase (building-definition-name def)) 0
                            (min 30 (length (building-definition-name def))))
@@ -1100,11 +1622,11 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
                          ((plusp potencia) (format nil "POWER USE ~D MW" potencia))
                          (t "POWER PASSIVE"))
                    (+ x 72) (+ y 54) '(158 205 220 255) :scale 1)
-        (when (member (building-kind b) '(:belt :fast-belt :splitter
-                                          :inserter :long-inserter))
+        (when (or (transportador-p b)
+                  (member (building-kind b) '(:inserter :long-inserter :stack-inserter)))
           (draw-text (format nil "~A: ~A~A" (translate :flow)
                              (nome-direcao (building-rotation b))
-                             (if (eq (building-kind b) :splitter)
+                             (if (member (building-kind b) '(:splitter :filter-splitter))
                                  (format nil "/~A" (nome-direcao
                                                     (1+ (building-rotation b)))) ""))
                      (+ x 250) (+ y 54) '(108 255 215 255) :scale 1))
@@ -1125,7 +1647,8 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
             (loop for (item . quantidade) in itens for coluna from 0
                   for ix = (+ x 14 (* coluna 108)) do
               (draw-rect ix (+ y 116) 100 38 '(10 23 32 255))
-              (draw-sprite :items (sprite-item item) (+ ix 4) (+ y 120) 30 30)
+              (draw-sprite (folha-item item) (sprite-item item)
+                           (+ ix 4) (+ y 120) 30 30)
               (draw-text (format nil "~A ~D" item quantidade)
                          (+ ix 38) (+ y 130) '(214 228 234 255) :scale 1))
             (draw-text (translate :empty) (+ x 14) (+ y 128)
@@ -1133,7 +1656,7 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
 
 (defun desenhar-icone (kind x y tamanho &key (opacity 255))
   "Desenha o ícone estático e exclusivo de uma construção na interface."
-  (draw-sprite :buildings (sprite-construcao kind) x y tamanho tamanho
+  (draw-sprite (folha-construcao kind) (sprite-construcao kind) x y tamanho tamanho
                :opacity opacity))
 
 (defparameter *categorias-ui* #(:all :logistics :production :power :defense))
@@ -1150,6 +1673,19 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
 (defun indices-catalogo ()
   (loop for i below (length *selecionados*)
         when (pertence-categoria-p (aref *selecionados* i) *categoria-ui*) collect i))
+
+(defconstant +itens-por-pagina-catalogo+ 32)
+
+(defun paginas-catalogo (&optional (indices (indices-catalogo)))
+  (max 1 (ceiling (length indices) +itens-por-pagina-catalogo+)))
+
+(defun indices-pagina-catalogo ()
+  (let* ((indices (indices-catalogo))
+         (paginas (paginas-catalogo indices)))
+    (setf *pagina-catalogo* (mod *pagina-catalogo* paginas))
+    (let ((inicio (* *pagina-catalogo* +itens-por-pagina-catalogo+)))
+      (subseq indices inicio (min (length indices)
+                                  (+ inicio +itens-por-pagina-catalogo+))))))
 
 (defun custo-resumido (kind)
   (let ((custo (building-definition-cost (find-building kind))))
@@ -1201,10 +1737,12 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
 
 (defun desenhar-catalogo (mundo)
   (let* ((x0 (- (screen-width) 242)) (y0 88) (largura 230)
-         (indices (indices-catalogo)))
+         (todos (indices-catalogo)) (indices (indices-pagina-catalogo)))
     (draw-rect x0 y0 largura (- (screen-height) y0 100) '(4 9 15 246))
     (draw-rect x0 y0 largura (- (screen-height) y0 100) '(63 102 118 255) :outline t)
     (draw-text (translate :build-menu) (+ x0 10) (+ y0 10) '(112 245 220 255) :scale 1)
+    (draw-text (format nil "~D/~D" (1+ *pagina-catalogo*) (paginas-catalogo todos))
+               (+ x0 190) (+ y0 10) '(151 181 194 255) :scale 1)
     (loop for categoria across *categorias-ui* for i from 0
           for bx = (+ x0 8 (* i 44)) do
       (draw-rect bx (+ y0 29) 40 24
@@ -1247,19 +1785,19 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
           (let ((px (* x +tamanho-celula+)) (py (* y +tamanho-celula+))
                 (recurso (recurso-em mundo x y)))
             (draw-sprite :environment (indice-chao mundo x y)
-                         px py +tamanho-celula+ +tamanho-celula+ :world t)
+                         px py +tamanho-celula+ +tamanho-celula+ :world t
+                         :tint (tinta-terreno mundo x y))
             (when recurso
               (let ((indice (indice-recurso-sprite recurso)))
                 (when indice
                   (draw-sprite :terrain (+ 4 indice) px py +tamanho-celula+
                                +tamanho-celula+ :world t))))
             (unless recurso
-              (let ((prop (indice-prop-ambiental mundo x y)))
+              (multiple-value-bind (prop tam) (prop-ambiental mundo x y)
                 (when prop
-                  (let ((tam (if (<= 16 prop 23) 54 42)))
-                    (draw-sprite :environment prop
-                                 (- px (/ (- tam 32) 2)) (- py (- tam 32))
-                                 tam tam :world t)))))))))
+                  (draw-sprite :environment-props-v2 prop
+                               (- px (/ (- tam 32) 2)) (- py (- tam 32))
+                               tam tam :world t))))))))
     (map-buildings (lambda (b) (desenhar-construcao b :game-world mundo)) mundo)
     (map-entities
      (lambda (e)
@@ -1312,7 +1850,7 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
                           :tint (if livre '(110 255 194) '(255 92 116)))
           (let ((opacidade (if livre 150 75))
                 (angulo (* 90 *rotacao-construcao*)))
-            (draw-sprite :buildings (sprite-construcao kind) (- x 7) (- y 10)
+            (draw-sprite (folha-construcao kind) (sprite-construcao kind) (- x 7) (- y 10)
                          46 46 :world t :angle angulo :opacity opacidade)
             (when (member kind '(:belt :fast-belt :inserter :long-inserter
                                  :pump :rail-signal :station))
@@ -1360,11 +1898,45 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
       (draw-rect 12 y 4 23 cor)
       (draw-text (subseq texto 0 (min 36 (length texto))) 22 (+ y 8) cor :scale 1))))
 
+(defun desenhar-objetivo-atual (mundo)
+  "Mantém a próxima ação e sua recompensa visíveis sem abrir menus."
+  (multiple-value-bind (texto atual alvo recompensa) (objetivo-capitulo mundo)
+    (let ((x 12) (y 168) (largura 270))
+      (draw-rect x y largura 86 '(4 10 17 238))
+      (draw-rect x y largura 86 '(53 91 108 255) :outline t)
+      (draw-rect x y 4 86 '(112 245 220 255))
+      (draw-text (translate :objective) (+ x 14) (+ y 10) '(112 245 220 255) :scale 1)
+      (draw-text (subseq texto 0 (min 38 (length texto))) (+ x 14) (+ y 29)
+                 '(222 234 239 255) :scale 1)
+      (draw-rect (+ x 14) (+ y 48) 190 7 '(18 32 42 255))
+      (draw-rect (+ x 14) (+ y 48) (* 190 (/ atual (float (max 1 alvo)))) 7
+                 '(244 190 79 255))
+      (draw-text (format nil "~D/~D" atual alvo) (+ x 215) (+ y 47)
+                 '(244 205 109 255) :scale 1)
+      (when recompensa
+        (let ((linha (format nil "~A: ~A" (translate :next-reward)
+                             (texto-itens recompensa))))
+          (draw-text (subseq linha 0 (min 40 (length linha))) (+ x 14) (+ y 67)
+                     '(155 181 193 255) :scale 1))))))
+
+(defun desenhar-notificacoes (mundo)
+  (let ((ativas (remove-if (lambda (n) (<= (getf n :until) (world-tick mundo)))
+                            (dado mundo :notifications nil))))
+    (setf (dado mundo :notifications) ativas)
+    (loop for notificacao in ativas for linha from 0
+          for x = (- (screen-width) 708) for y = (+ 140 (* linha 30))
+          for cor = (getf notificacao :color '(112 245 220 255))
+          for texto = (getf notificacao :text "") do
+      (draw-rect x y 430 25 '(4 10 17 236))
+      (draw-rect x y 4 25 cor)
+      (draw-text (subseq texto 0 (min 62 (length texto))) (+ x 13) (+ y 8)
+                 cor :scale 1))))
+
 (defun desenhar-ui (mundo)
   (draw-rect 0 0 (screen-width) 72 '(4 8 15 246))
   (draw-rect 0 71 (screen-width) 1 '(62 105 119 255))
   (draw-text (translate :title) 14 10 '(112 245 220 255) :scale 2)
-  (let* ((c (dado mundo :chapter 1)) (nome (aref *capitulos* (1- c)))
+  (let* ((c (dado mundo :chapter 1)) (nome (nome-capitulo (1- c)))
          (inv (inventario-jogador mundo)) (sel (aref *selecionados* *indice-selecao*)))
     (draw-text (translate :chapter c nome) 14 40 '(205 222 230 255) :scale 1)
     (desenhar-chip-recurso 4 (inventory-count inv :iron-plate) 290 10 '(202 219 229 255))
@@ -1386,6 +1958,7 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
     (desenhar-hotbar mundo)
     (if *mostrar-catalogo* (desenhar-catalogo mundo) (desenhar-minimapa mundo))
     (desenhar-alertas-fabrica mundo)
+    (desenhar-objetivo-atual mundo)
     (when *mostrar-ajuda*
       (draw-rect 12 (- (screen-height) 117) 470 23 '(7 12 20 235))
       (draw-text (translate :help) 22 (- (screen-height) 110) '(175 197 207 255) :scale 1))
@@ -1420,6 +1993,7 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
       (let ((msg (dado mundo :message "")))
         (draw-rect 260 92 (- (screen-width) 520) 38 '(38 16 50 225))
         (draw-text msg 280 105 '(235 131 255 255) :scale 2)))
+    (desenhar-notificacoes mundo)
     (desenhar-inspetor-predio mundo)
     ))
 
@@ -1506,9 +2080,30 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
   (draw-text "NO TELEMETRY. MIT LICENSE." 92 414 '(104 241 196 255) :scale 1)
   (desenhar-botao-menu (translate :back) 92 478 330 t))
 
+(defconstant +linhas-tecnologia+ 4)
+
+(defun colunas-tecnologia ()
+  "A árvore se adapta sem comprimir os cartões até ficarem ilegíveis."
+  (max 3 (min 6 (floor (- (screen-width) 64) 190))))
+
+(defun tecnologias-por-pagina ()
+  (* +linhas-tecnologia+ (colunas-tecnologia)))
+
+(defun pagina-tecnologia (indice)
+  (floor indice (tecnologias-por-pagina)))
+
+(defun intervalo-pagina-tecnologia ()
+  (let* ((tamanho (tecnologias-por-pagina))
+         (inicio (* (pagina-tecnologia *indice-tecnologia*) tamanho)))
+    (values inicio (min (length *ordem-tecnologias*) (+ inicio tamanho)))))
+
 (defun posicao-tecnologia (indice)
-  (values (+ 44 (* (mod indice 6) 200))
-          (+ 118 (* (floor indice 6) 112))))
+  (let* ((colunas (colunas-tecnologia))
+         (local (mod indice (tecnologias-por-pagina)))
+         (passo (if (= colunas 1) 0
+                    (/ (- (screen-width) 88 180) (1- colunas)))))
+    (values (+ 44 (round (* (mod local colunas) passo)))
+            (+ 112 (* (floor local colunas) 90)))))
 
 (defun estado-tecnologia (mundo id)
   (cond ((tecnologia-concluida-p mundo id) :completed)
@@ -1521,57 +2116,82 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
     (:completed '(73 211 160 255)) (:active '(243 184 72 255))
     (:available '(85 211 230 255)) (t '(67 77 90 255))))
 
+(defun nome-cartao-tecnologia (tecnologia)
+  "Abrevia nomes no nó; o painel inferior mantém o nome completo."
+  (let ((nome (string-upcase (technology-definition-name tecnologia))))
+    (if (> (length nome) 16)
+        (concatenate 'string (subseq nome 0 14) "..")
+        nome)))
+
 (defun desenhar-arvore-tecnologica (mundo)
   (draw-rect 0 0 (screen-width) (screen-height) '(3 8 15 247))
   (draw-text (translate :technology) 42 28 '(112 245 220 255) :scale 3)
-  (draw-text "ARROWS SELECT  ENTER RESEARCH  T/ESC CLOSE" 44 72 '(159 182 194 255))
-  ;; Dependências aparecem atrás dos nós e tornam os ramos legíveis.
-  (loop for id across *ordem-tecnologias* for indice from 0
-        for tech = (find-technology id) do
-    (multiple-value-bind (x y) (posicao-tecnologia indice)
-      (dolist (requisito (technology-definition-prerequisites tech))
-        (let ((origem (position requisito *ordem-tecnologias*)))
-          (when origem
-            (multiple-value-bind (ox oy) (posicao-tecnologia origem)
-              (draw-line (+ ox 90) (+ oy 36) (+ x 90) (+ y 36)
-                         (if (tecnologia-concluida-p mundo requisito)
-                             '(66 188 151 255) '(48 65 76 255)))))))))
-  (loop for id across *ordem-tecnologias* for indice from 0
-        for tech = (find-technology id) for estado = (estado-tecnologia mundo id) do
-    (multiple-value-bind (x y) (posicao-tecnologia indice)
-      (draw-rect x y 180 72 (if (= indice *indice-tecnologia*)
-                                '(24 46 58 255) '(8 19 29 255)))
-      (draw-rect x y 180 72 (if (= indice *indice-tecnologia*)
-                                '(241 188 76 255) (cor-estado-tecnologia estado)) :outline t)
-      (draw-text (subseq (string-upcase (technology-definition-name tech)) 0
-                         (min 22 (length (technology-definition-name tech))))
-                 (+ x 9) (+ y 12) '(214 231 238 255))
-      (draw-text (translate estado) (+ x 9) (+ y 39)
-                 (cor-estado-tecnologia estado))
-      (draw-text (format nil "~D" (custo-tecnologia tech)) (+ x 148) (+ y 39)
-                 '(192 174 238 255))))
+  (let* ((pagina (pagina-tecnologia *indice-tecnologia*))
+         (paginas (ceiling (length *ordem-tecnologias*) (tecnologias-por-pagina))))
+    (draw-text "ARROWS SELECT  ENTER RESEARCH  PGUP/PGDN PAGE  T/ESC CLOSE"
+               44 70 '(159 182 194 255))
+    (draw-text (format nil "PAGE ~D / ~D" (1+ pagina) paginas)
+               (- (screen-width) 150) 38 '(243 184 72 255))
+    (multiple-value-bind (inicio fim) (intervalo-pagina-tecnologia)
+      ;; Dependências da página aparecem atrás dos nós; conexões externas recebem
+      ;; uma marca no cartão em vez de linhas atravessando páginas invisíveis.
+      (loop for indice from inicio below fim
+            for id = (aref *ordem-tecnologias* indice)
+            for tech = (find-technology id) do
+        (multiple-value-bind (x y) (posicao-tecnologia indice)
+          (dolist (requisito (technology-definition-prerequisites tech))
+            (let ((origem (position requisito *ordem-tecnologias*)))
+              (when (and origem (= (pagina-tecnologia origem) pagina))
+                (multiple-value-bind (ox oy) (posicao-tecnologia origem)
+                  (draw-line (+ ox 90) (+ oy 36) (+ x 90) (+ y 36)
+                             (if (tecnologia-concluida-p mundo requisito)
+                                 '(66 188 151 255) '(48 65 76 255)))))))))
+      (loop for indice from inicio below fim
+            for id = (aref *ordem-tecnologias* indice)
+            for tech = (find-technology id)
+            for estado = (estado-tecnologia mundo id) do
+        (multiple-value-bind (x y) (posicao-tecnologia indice)
+          (draw-rect x y 180 72 (if (= indice *indice-tecnologia*)
+                                    '(24 46 58 255) '(8 19 29 255)))
+          (draw-rect x y 180 72 (if (= indice *indice-tecnologia*)
+                                    '(241 188 76 255) (cor-estado-tecnologia estado)) :outline t)
+          (draw-text (nome-cartao-tecnologia tech)
+                     (+ x 9) (+ y 12) '(214 231 238 255))
+          (draw-text (translate estado) (+ x 9) (+ y 39)
+                     (cor-estado-tecnologia estado))
+          (draw-text (format nil "~D" (custo-tecnologia tech)) (+ x 148) (+ y 39)
+                     '(192 174 238 255)))))
   (let* ((id (aref *ordem-tecnologias* *indice-tecnologia*))
          (tech (find-technology id)) (estado (estado-tecnologia mundo id))
          (ativo (eq id (dado mundo :active-research)))
          (progresso (if ativo (dado mundo :research-progress 0) 0))
-         (custo (custo-tecnologia tech)))
-    (draw-rect 42 582 (- (screen-width) 84) 104 '(6 15 24 252))
-    (draw-rect 42 582 (- (screen-width) 84) 104 (cor-estado-tecnologia estado) :outline t)
-    (draw-text (technology-definition-name tech) 62 601 '(235 242 245 255) :scale 2)
-    (draw-text (format nil "UNLOCKS: ~{~A~^, ~}" (technology-definition-unlocks tech))
-               62 632 '(170 191 202 255))
-    (draw-rect 62 657 520 10 '(17 30 39 255))
-    (draw-rect 62 657 (* 520 (/ (min progresso custo) (float custo))) 10
+         (custo (custo-tecnologia tech))
+         (painel-y 476)
+         (painel-h (max 138 (min 190 (- (screen-height) painel-y 18))))
+         (barra-y (+ painel-y painel-h -34)))
+    (draw-rect 42 painel-y (- (screen-width) 84) painel-h '(6 15 24 252))
+    (draw-rect 42 painel-y (- (screen-width) 84) painel-h
+               (cor-estado-tecnologia estado) :outline t)
+    (draw-text (technology-definition-name tech) 62 (+ painel-y 18)
+               '(235 242 245 255) :scale 2)
+    (draw-text (string-upcase (translate estado)) 62 (+ painel-y 49)
                (cor-estado-tecnologia estado))
-    (draw-text (format nil "~D / ~D" progresso custo) 598 657 '(218 229 234 255))))
+    (draw-text (format nil "UNLOCKS: ~{~A~^, ~}" (technology-definition-unlocks tech))
+               62 (+ painel-y 78) '(170 191 202 255))
+    (draw-rect 62 barra-y 520 12 '(17 30 39 255))
+    (draw-rect 62 barra-y (* 520 (/ (min progresso custo) (float custo))) 12
+               (cor-estado-tecnologia estado))
+    (draw-text (format nil "SCIENCE ~D / ~D" progresso custo) 598 (- barra-y 2)
+               '(218 229 234 255)))))
 
 (defun clicar-arvore-tecnologica (mundo x y)
-  (loop for indice below (length *ordem-tecnologias*) do
-    (multiple-value-bind (nx ny) (posicao-tecnologia indice)
-      (when (and (<= nx x (+ nx 180)) (<= ny y (+ ny 72)))
-        (setf *indice-tecnologia* indice)
-        (selecionar-pesquisa mundo (aref *ordem-tecnologias* indice))
-        (return t)))))
+  (multiple-value-bind (inicio fim) (intervalo-pagina-tecnologia)
+    (loop for indice from inicio below fim do
+      (multiple-value-bind (nx ny) (posicao-tecnologia indice)
+        (when (and (<= nx x (+ nx 180)) (<= ny y (+ ny 72)))
+          (setf *indice-tecnologia* indice)
+          (selecionar-pesquisa mundo (aref *ordem-tecnologias* indice))
+          (return t))))))
 
 (defun renderizar (mundo alpha)
   (declare (ignore alpha))
@@ -1673,26 +2293,40 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
                          (dado mundo :recent-builds nil))))
     (setf (dado mundo :recent-builds) (subseq historico 0 (min 32 (length historico))))))
 
+(defun notificar-bloqueio-construcao (mundo texto)
+  (unless (and (string= texto (dado mundo :last-build-error ""))
+               (< (- (world-tick mundo) (dado mundo :last-build-error-tick -100)) 30))
+    (setf (dado mundo :last-build-error) texto
+          (dado mundo :last-build-error-tick) (world-tick mundo))
+    (notificar mundo texto :duracao 75 :cor '(255 111 128 255))))
+
 (defun construir-na-celula (mundo x y)
   "Constrói uma célula e registra uma operação reversível de curta duração."
   (let* ((kind (aref *selecionados* *indice-selecao*)) (def (find-building kind)))
-    (when (and (construcao-desbloqueada-p mundo kind)
-               (alcance-personagem-p mundo x y)
-               (null (building-at mundo x y)) (consumir-custo mundo def))
-      (let ((predio
-              (place-building mundo kind x y :rotation *rotacao-construcao*
-                              :recipe (when (member kind
-                                                    '(:stone-furnace :electric-furnace
-                                                      :assembler :chemical-plant :refinery
-                                                      :laboratory))
-                                        (aref *receitas-selecionaveis*
-                                              *indice-receita*)))))
-        (when predio
-          (registrar-construcao-recente mundo predio)
-          (iniciar-acao-personagem mundo :building)
-          (criar-efeito mundo :vfx-spark (+ x .5) (+ y .5) :duracao 18 :tamanho 42)
-          (play-sound :build))
-        predio))))
+    (cond
+      ((not (construcao-desbloqueada-p mundo kind))
+       (notificar-bloqueio-construcao mundo (translate :locked-building)) nil)
+      ((not (alcance-personagem-p mundo x y))
+       (notificar-bloqueio-construcao mundo (translate :out-of-range)) nil)
+      ((building-at mundo x y)
+       (notificar-bloqueio-construcao mundo (translate :occupied)) nil)
+      ((not (consumir-custo mundo def))
+       (notificar-bloqueio-construcao mundo (translate :no-material)) nil)
+      (t
+       (let ((predio
+               (place-building mundo kind x y :rotation *rotacao-construcao*
+                               :recipe (when (member kind
+                                                     '(:stone-furnace :electric-furnace
+                                                       :assembler :chemical-plant :refinery
+                                                       :laboratory))
+                                         (aref *receitas-selecionaveis*
+                                               *indice-receita*)))))
+         (when predio
+           (registrar-construcao-recente mundo predio)
+           (iniciar-acao-personagem mundo :building)
+           (criar-efeito mundo :vfx-spark (+ x .5) (+ y .5) :duracao 18 :tamanho 42)
+           (play-sound :build))
+         predio)))))
 
 (defun construir-em-tela (mundo sx sy)
   (let ((celula (celula-em-tela sx sy)))
@@ -1786,12 +2420,13 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
            ((and (<= 117 y 141) (<= (+ x0 8) x (+ x0 228)))
             (let ((i (floor (- x (+ x0 8)) 44)))
               (when (< i (length *categorias-ui*))
-                (setf *categoria-ui* (aref *categorias-ui* i)))))
+                (setf *categoria-ui* (aref *categorias-ui* i)
+                      *pagina-catalogo* 0))))
            ((>= y 149)
             (let* ((coluna (floor (- x (+ x0 8)) 54))
                    (linha (floor (- y 149) 52))
                    (ordem (+ coluna (* linha 4)))
-                   (indices (indices-catalogo)))
+                   (indices (indices-pagina-catalogo)))
               (when (and (<= 0 coluna 3) (<= 0 ordem) (< ordem (length indices)))
                 (let ((indice (nth ordem indices)))
                   (when (construcao-desbloqueada-p mundo (aref *selecionados* indice))
@@ -1908,18 +2543,26 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
 (defun entrada-arvore-tecnologica (mundo tipo dados)
   (case tipo
     (:key-down
-     (let ((k (first dados)))
+     (let ((k (first dados))
+           (total (length *ordem-tecnologias*))
+           (colunas (colunas-tecnologia))
+           (pagina (tecnologias-por-pagina)))
        (cond ((or (sdl2:scancode= k :scancode-escape)
                   (sdl2:scancode= k :scancode-t))
               (fechar-arvore-tecnologica))
              ((sdl2:scancode= k :scancode-left)
-              (setf *indice-tecnologia* (mod (1- *indice-tecnologia*) 24)))
+              (setf *indice-tecnologia* (mod (1- *indice-tecnologia*) total)))
              ((sdl2:scancode= k :scancode-right)
-              (setf *indice-tecnologia* (mod (1+ *indice-tecnologia*) 24)))
+              (setf *indice-tecnologia* (mod (1+ *indice-tecnologia*) total)))
              ((sdl2:scancode= k :scancode-up)
-              (setf *indice-tecnologia* (mod (- *indice-tecnologia* 6) 24)))
+              (setf *indice-tecnologia* (mod (- *indice-tecnologia* colunas) total)))
              ((sdl2:scancode= k :scancode-down)
-              (setf *indice-tecnologia* (mod (+ *indice-tecnologia* 6) 24)))
+              (setf *indice-tecnologia* (mod (+ *indice-tecnologia* colunas) total)))
+             ((sdl2:scancode= k :scancode-pageup)
+              (setf *indice-tecnologia* (max 0 (- *indice-tecnologia* pagina))))
+             ((sdl2:scancode= k :scancode-pagedown)
+              (setf *indice-tecnologia* (min (1- total)
+                                             (+ *indice-tecnologia* pagina))))
              ((or (sdl2:scancode= k :scancode-return)
                   (sdl2:scancode= k :scancode-kp-enter))
               (selecionar-pesquisa mundo
@@ -1929,9 +2572,21 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
      (destructuring-bind (botao x y) dados
        (when (= botao 1) (clicar-arvore-tecnologica mundo x y))) t)
     (:controller-down
-     (case (first dados)
-       (0 (selecionar-pesquisa mundo (aref *ordem-tecnologias* *indice-tecnologia*)))
-       (1 (fechar-arvore-tecnologica))) t)
+     (let ((botao (first dados))
+           (total (length *ordem-tecnologias*))
+           (colunas (colunas-tecnologia))
+           (pagina (tecnologias-por-pagina)))
+       (case botao
+         (0 (selecionar-pesquisa mundo (aref *ordem-tecnologias* *indice-tecnologia*)))
+         (1 (fechar-arvore-tecnologica))
+         (9 (setf *indice-tecnologia* (max 0 (- *indice-tecnologia* pagina))))
+         (10 (setf *indice-tecnologia* (min (1- total)
+                                            (+ *indice-tecnologia* pagina))))
+         (11 (setf *indice-tecnologia* (mod (- *indice-tecnologia* colunas) total)))
+         (12 (setf *indice-tecnologia* (mod (+ *indice-tecnologia* colunas) total)))
+         (13 (setf *indice-tecnologia* (mod (1- *indice-tecnologia*) total)))
+         (14 (setf *indice-tecnologia* (mod (1+ *indice-tecnologia*) total)))))
+     t)
     (otherwise t)))
 
 (defun entrada (mundo tipo &rest dados)
@@ -1987,8 +2642,17 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
      (when (= (first dados) 1)
        (setf *arrasto-construcao* nil *ultima-celula-arrasto* nil)))
     (:mouse-wheel
-     (let ((dy (second dados))) (setf *zoom* (max .5 (min 2.5 (+ *zoom* (* dy .1)))))
-       (multiple-value-bind (x y z) (camera-position) (declare (ignore z)) (set-camera x y *zoom*))))
+     (let ((dy (second dados)))
+       (multiple-value-bind (mx my) (mouse-position)
+         (declare (ignore my))
+         (if (and *mostrar-catalogo* (>= mx (- (screen-width) 242)))
+             (setf *pagina-catalogo*
+                   (mod (+ *pagina-catalogo* (if (minusp dy) 1 -1))
+                        (paginas-catalogo)))
+             (progn
+               (setf *zoom* (max .5 (min 2.5 (+ *zoom* (* dy .1)))))
+               (multiple-value-bind (x y z) (camera-position)
+                 (declare (ignore z)) (set-camera x y *zoom*)))))))
     (:controller-axis
      (let ((eixo (first dados)) (valor (/ (second dados) 32767.0)))
        (when (< eixo 4) (setf (aref *eixos-gamepad* eixo) (if (< (abs valor) .18) 0.0 valor)))))
@@ -2009,10 +2673,16 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
   (register-sprite-sheet :machines (merge-pathnames "assets/sprites/machines-atlas.png" *raiz*) 6 4)
   (register-sprite-sheet :buildings
                          (merge-pathnames "assets/sprites/buildings-static.png" *raiz*) 6 6)
+  (register-sprite-sheet :buildings-v2
+                         (merge-pathnames "assets/sprites/buildings-expansion-v2.png" *raiz*) 4 4)
   (register-sprite-sheet :items
                          (merge-pathnames "assets/sprites/items-static.png" *raiz*) 8 6)
+  (register-sprite-sheet :items-v2
+                         (merge-pathnames "assets/sprites/items-expansion-v2.png" *raiz*) 5 5)
   (register-sprite-sheet :environment
                          (merge-pathnames "assets/sprites/environment-static.png" *raiz*) 8 6)
+  (register-sprite-sheet :environment-props-v2
+                         (merge-pathnames "assets/sprites/environment-props-v2.png" *raiz*) 4 4)
   (register-sprite-sheet :terrain (merge-pathnames "assets/sprites/terrain-atlas.png" *raiz*) 4 4)
   (register-sprite-sheet :units (merge-pathnames "assets/sprites/units-atlas.png" *raiz*) 4 3)
   (register-sprite-sheet :machines-animated
@@ -2066,6 +2736,7 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
   (register-sound :impact (merge-pathnames "assets/audio/impact.wav" *raiz*))
   (set-audio-volume *volume-configurado*)
   (setf *indice-menu* 0 *mensagem-menu* ""
+        *pagina-catalogo* 0
         *tela-ui* (if *pular-menu-principal* :playing :main-menu)
         *sessao-iniciada* *pular-menu-principal*
         *arrasto-construcao* nil *ultima-celula-arrasto* nil)

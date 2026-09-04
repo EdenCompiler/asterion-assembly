@@ -75,10 +75,13 @@ xdotool mousemove --window "$janela" 770 380 click 2
 sleep 0.10
 import -window "$janela" "$saida/weapon-vfx.png"
 
-# A árvore deve pausar a fábrica e apresentar os 24 nós e dependências.
+# A árvore deve pausar a fábrica, paginar os 36 nós e manter dependências legíveis.
 xdotool key --window "$janela" t
 sleep 0.3
 import -window "$janela" "$saida/technology-tree.png"
+xdotool key --window "$janela" Page_Down
+sleep 0.2
+import -window "$janela" "$saida/technology-tree-page2.png"
 xdotool key --window "$janela" Escape
 
 # Exercita os principais estados de interface sem abrir janela no desktop real.
@@ -126,5 +129,5 @@ if grep -Eiq 'unhandled|fatal|backtrace|ANTIGONUS ERROR' "$saida/game.log"; then
 fi
 
 quantidade="$(find "$saida" -maxdepth 1 -name '*.png' | wc -l)"
-[[ "$quantidade" -eq 26 ]]
+[[ "$quantidade" -eq 27 ]]
 echo "Playtest virtual concluído: $quantidade capturas, log limpo."

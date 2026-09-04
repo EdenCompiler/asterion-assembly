@@ -22,6 +22,32 @@ Visual animation uses `engine-time`, which is deliberately independent of the
 30 UPS simulation clock. This keeps presentation fluid while the deterministic
 world is paused or running at 2x/4x.
 
+## API 2.0
+
+`+engine-version+` is `2.0.0`, the save schema is `2`, and chunks are fixed at
+32×32 tiles. `ensure-chunk`, `world-tile`, `set-world-tile`,
+`chunk-resource-count` and `deplete-resource` expose deterministic world data.
+
+`defitem`, `defrecipe`, `defbuilding` and `deftechnology` accept the additive
+2.0 material, fluid, footprint, port, render-layer, circuit connector and tech
+branch fields. Existing 1.x forms remain valid. `defsystem` additionally accepts
+`:phase`, `:reads`, `:writes` and `:parallel`; parallel jobs return command
+buffers that are applied in their stable input order.
+
+Factory primitives include two-lane compact belts, volume/pressure fluid
+networks, priority power networks and typed circuit signals. Rail graphs expose
+geometry, blocks and stable reservations. `capture-blueprint` and
+`apply-blueprint` create immediate structures or persistent construction ghosts.
+
+Schema-1 saves are backed up before migration. Aggregated belt inventory is
+distributed deterministically over two lanes and legacy shuttle trains are
+marked for equivalent schedule generation.
+
+The interactive runtime requests an OpenGL 3.3 compatibility context through
+SDL2 and fixes `SDL_RENDER_DRIVER` to OpenGL with render batching enabled. A
+missing OpenGL backend is a startup error; the 2.0 runtime does not silently
+switch to a software or Direct3D renderer.
+
 ## Exemplo
 
 ```lisp

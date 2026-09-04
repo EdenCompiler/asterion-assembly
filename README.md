@@ -5,21 +5,26 @@ Toda a engine está em [`antigonus.lisp`](antigonus.lisp); a API pública é em
 inglês e o código interno é em pt-BR. Asterion Assembly é o jogo completo de
 exemplo, com campanha, sandbox, logística, produção, pesquisa, fauna e trens.
 O mundo usa atlas raster originais em `assets/sprites`, incluindo um atlas
-estático com um sprite exclusivo para cada uma das 36 construções, biomas e
+estático com um sprite exclusivo para cada uma das 52 construções, biomas e
 fauna, além de spritesheets animadas de 8 frames para máquinas, esteiras,
 unidades e efeitos. O engenheiro humanoide possui um atlas sem armas para
 repouso, caminhada, construção e manutenção; ações ofensivas ficam isoladas em
 `weapons-animated.png`.
 O catálogo e a barra rápida sempre usam os sprites estáticos; animações aparecem
-somente nas instâncias do mundo. Um atlas adicional contém 46 itens exclusivos;
+somente nas instâncias do mundo. Os atlas de inventário contêm 70 itens exclusivos;
 os itens dos inventários reais são interpolados sobre esteiras, braços e portas
 de máquinas.
-Uma árvore de 24 tecnologias acessível por `T` aplica dependências, progresso e
-bloqueios reais. `WASD` movimenta o engenheiro; botão central ou `X` dispara na
+Uma árvore de 36 tecnologias, dividida em tronco e especializações, acessível
+por `T`, usa páginas responsivas e aplica dependências, progresso e bloqueios
+reais. Objetivos de campanha permanecem visíveis, antecipam recompensas e
+confirmam cada avanço de capítulo. O ambiente combina terreno por bioma com
+vegetação, cristais, ruínas, detritos e sinais visuais de poluição ou restauração.
+`WASD` movimenta o engenheiro; botão central ou `X` dispara na
 direção do cursor, com VFX determinísticos de disparo e impacto.
 Construções lineares aceitam arrasto com orientação automática, `Z` desfaz a
 construção recente e divisores alternam itens de forma determinística entre
-duas saídas. O inspetor contextual mostra energia, conteúdo, receita e taxa sem
+duas pistas com posições exatas. O catálogo pagina os 52 edifícios sem animar
+ícones. O inspetor contextual mostra energia, conteúdo, receita e taxa sem
 interromper a simulação.
 Primitivas geométricas ficam restritas à interface, sombras, depuração e
 fallback da engine.
