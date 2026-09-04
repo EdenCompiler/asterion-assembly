@@ -31,5 +31,7 @@
 (let ((saida (or (uiop:getenv "ASTERION_OUTPUT") "dist/asterion-assembly")))
   (ensure-directories-exist saida)
   (sb-ext:save-lisp-and-die saida :toplevel #'asterion-entrypoint
-                                  :executable t :compression t
+                                  :executable t
+                                  :compression (not (null (member :sb-core-compression
+                                                                   *features*)))
                                   :save-runtime-options t))
