@@ -12,6 +12,12 @@
 - Added original generated industrial atlases for 16 buildings and 24 item icons.
 - Added finite deposits that scale with distance and construction-drone ghost handling.
 - Added a paginated static build catalog and expanded virtual rendering coverage.
+- Added a responsive two-page technology interface so every one of the 36 nodes
+  is selectable at supported resolutions.
+- Added persistent chapter objectives, visible progress, material rewards and
+  explanatory build-error notifications.
+- Added a 16-prop environmental atlas with biome-aware ruins, vegetation,
+  pollution damage and restoration details, plus calmer biome color grading.
 - Fixed the runtime to an OpenGL 3.3 SDL driver with command batching enabled.
 - Validated the self-contained Linux x64 ZIP through an isolated package smoke test.
 

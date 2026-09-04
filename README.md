@@ -15,8 +15,11 @@ somente nas instâncias do mundo. Os atlas de inventário contêm 70 itens exclu
 os itens dos inventários reais são interpolados sobre esteiras, braços e portas
 de máquinas.
 Uma árvore de 36 tecnologias, dividida em tronco e especializações, acessível
-por `T` aplica dependências, progresso e
-bloqueios reais. `WASD` movimenta o engenheiro; botão central ou `X` dispara na
+por `T`, usa páginas responsivas e aplica dependências, progresso e bloqueios
+reais. Objetivos de campanha permanecem visíveis, antecipam recompensas e
+confirmam cada avanço de capítulo. O ambiente combina terreno por bioma com
+vegetação, cristais, ruínas, detritos e sinais visuais de poluição ou restauração.
+`WASD` movimenta o engenheiro; botão central ou `X` dispara na
 direção do cursor, com VFX determinísticos de disparo e impacto.
 Construções lineares aceitam arrasto com orientação automática, `Z` desfaz a
 construção recente e divisores alternam itens de forma determinística entre

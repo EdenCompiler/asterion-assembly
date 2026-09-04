@@ -340,7 +340,10 @@
     (:miners-dry "MINERS WITHOUT RESOURCE") (:belts-blocked "BLOCKED OUTPUTS")
     (:power-satisfaction "SATISFACTION") (:mined "MINED") (:crafted "CRAFTED")
     (:moved "MOVED") (:active-machines "ACTIVE MACHINES")
-    (:undo-complete "CONSTRUCTION UNDONE") (:nothing-to-undo "NOTHING TO UNDO"))
+    (:undo-complete "CONSTRUCTION UNDONE") (:nothing-to-undo "NOTHING TO UNDO")
+    (:reward "CHAPTER REWARD") (:out-of-range "OUT OF BUILD RANGE")
+    (:occupied "TILE OCCUPIED") (:locked-building "TECHNOLOGY REQUIRED")
+    (:objective-progress "PROGRESS") (:next-reward "REWARD"))
   (deftranslations :pt
     (:title "ASTERION ASSEMBLY") (:chapter "CAPITULO ~D/9: ~A")
     (:help "WASD MOVE  ARRASTE LMB CONSTROI  RMB REMOVE  Z DESFAZ  T TECNOLOGIA")
@@ -364,7 +367,10 @@
     (:miners-dry "MINERADORES SEM RECURSO") (:belts-blocked "SAIDAS BLOQUEADAS")
     (:power-satisfaction "SATISFACAO") (:mined "MINERADO") (:crafted "PRODUZIDO")
     (:moved "MOVIDO") (:active-machines "MAQUINAS ATIVAS")
-    (:undo-complete "CONSTRUCAO DESFEITA") (:nothing-to-undo "NADA PARA DESFAZER")))
+    (:undo-complete "CONSTRUCAO DESFEITA") (:nothing-to-undo "NADA PARA DESFAZER")
+    (:reward "RECOMPENSA DO CAPITULO") (:out-of-range "FORA DO ALCANCE")
+    (:occupied "CELULA OCUPADA") (:locked-building "TECNOLOGIA NECESSARIA")
+    (:objective-progress "PROGRESSO") (:next-reward "RECOMPENSA")))
 
 (defun register-content ()
   (registrar-itens) (registrar-receitas) (registrar-construcoes)
@@ -1022,6 +1028,71 @@ visivelmente desligados até existir capacidade, em vez de alternarem a 30 Hz."
 (defparameter *capitulos*
   #("LANDFALL" "METALS" "AUTOMATION" "FLUIDS" "RESEARCH" "RAILWAYS"
     "SIGNALS AND DRONES" "WAR INDUSTRY" "HIVE ASSAULT"))
+(defparameter *capitulos-pt*
+  #("POUSO" "METAIS" "AUTOMACAO" "FLUIDOS" "PESQUISA" "FERROVIAS"
+    "SINAIS E DRONES" "INDUSTRIA BELICA" "ATAQUE A COLMEIA"))
+
+(defun nome-capitulo (indice)
+  (aref (if (eq (current-language) :pt) *capitulos-pt* *capitulos*) indice))
+
+(defun notificar (mundo texto &key (duracao 150) (cor '(112 245 220 255)))
+  "Enfileira feedback sem substituir outras mensagens importantes."
+  (let ((entrada (list :text texto :until (+ (world-tick mundo) duracao) :color cor)))
+    (setf (dado mundo :notifications)
+          (subseq (cons entrada (dado mundo :notifications nil))
+                  0 (min 4 (1+ (length (dado mundo :notifications nil))))))
+    entrada))
+
+(defparameter *recompensas-capitulos*
+  '((( :iron-plate . 35) (:copper-plate . 25))
+    ((:gear . 24) (:belt-part . 30))
+    ((:science-red . 25) (:circuit . 20))
+    ((:pipe . 30) (:steel-plate . 20))
+    ((:rail-part . 100) (:signal-part . 12))
+    ((:processor . 12) (:logistic-drone . 4))
+    ((:rocket . 20) (:repair-pack . 20))
+    ((:hive-charge . 2) (:plasma-cell . 20))))
+
+(defun texto-itens (itens)
+  (format nil "~{~A x~D~^  +  ~}"
+          (loop for (item . qtd) in itens
+                append (list (string-upcase (subseq (string item) 1)) qtd))))
+
+(defun conceder-recompensa-capitulo (mundo capitulo)
+  (let ((itens (nth (1- capitulo) *recompensas-capitulos*)))
+    (when itens
+      (dolist (par itens) (inventory-add (inventario-jogador mundo) (car par) (cdr par)))
+      (notificar mundo (format nil "~A: ~A" (translate :reward) (texto-itens itens))
+                 :duracao 270 :cor '(244 190 79 255)))))
+
+(defun objetivo-capitulo (mundo)
+  "Retorna descrição, progresso, alvo e recompensa do capítulo corrente."
+  (let ((c (dado mundo :chapter 1)))
+    (multiple-value-bind (texto atual alvo)
+        (case c
+          (1 (values (if (eq (current-language) :pt) "CONSTRUA 2 MINERADORES" "BUILD 2 MINERS")
+                     (quantidade-tipo mundo :miner) 2))
+          (2 (values (if (eq (current-language) :pt) "OPERE 2 FORNALHAS" "OPERATE 2 FURNACES")
+                     (quantidade-tipo mundo :stone-furnace) 2))
+          (3 (values (if (eq (current-language) :pt) "MONTE UMA MONTADORA" "BUILD AN ASSEMBLER")
+                     (quantidade-tipo mundo :assembler) 1))
+          (4 (values (if (eq (current-language) :pt) "CONECTE 6 PECAS DE FLUIDO" "CONNECT 6 FLUID PARTS")
+                     (+ (quantidade-tipo mundo :pipe) (quantidade-tipo mundo :pump)) 6))
+          (5 (values (if (eq (current-language) :pt) "ATIVE UM LABORATORIO" "ACTIVATE A LABORATORY")
+                     (quantidade-tipo mundo :laboratory) 1))
+          (6 (values (if (eq (current-language) :pt) "ASSENTE 20 TRILHOS" "LAY 20 RAIL SEGMENTS")
+                     (quantidade-tipo mundo :rail) 20))
+          (7 (values (if (eq (current-language) :pt) "LIGUE SINAIS E ROBOPORT" "CONNECT SIGNALS AND A ROBOPORT")
+                     (+ (quantidade-tipo mundo :rail-signal) (quantidade-tipo mundo :roboport)) 2))
+          (8 (values (if (eq (current-language) :pt) "FORTIFIQUE COM 2 TORRES" "DEPLOY 2 ADVANCED TURRETS")
+                     (+ (quantidade-tipo mundo :rocket-turret)
+                        (quantidade-tipo mundo :plasma-turret)) 2))
+          (otherwise
+           (values (if (eq (current-language) :pt) "LOCALIZE E DESTRUA A COLMEIA"
+                       "LOCATE AND DESTROY THE CENTRAL HIVE")
+                   (if (dado mundo :sandbox) 1 0) 1)))
+      (values texto (min atual alvo) alvo
+              (and (< c 9) (nth (1- c) *recompensas-capitulos*))))))
 (defun quantidade-tipo (mundo tipo)
   (let ((n 0)) (map-buildings (lambda (b) (when (eq (building-kind b) tipo) (incf n))) mundo) n))
 (defun avancar-capitulo (mundo)
@@ -1035,8 +1106,11 @@ visivelmente desligados até existir capacidade, em vez de alternarem a 30 Hz."
               (6 (>= (quantidade-tipo mundo :rail) 20))
               (7 (>= (+ (quantidade-tipo mundo :rail-signal) (quantidade-tipo mundo :roboport)) 2))
               (8 (>= (+ (quantidade-tipo mundo :rocket-turret) (quantidade-tipo mundo :plasma-turret)) 2))))
+      (conceder-recompensa-capitulo mundo c)
       (incf (dado mundo :chapter))
-      (setf (dado mundo :message) (format nil "NEW CHAPTER: ~A" (aref *capitulos* c))
+      (setf (dado mundo :message)
+            (format nil "~A: ~A" (if (eq (current-language) :pt) "NOVO CAPITULO" "NEW CHAPTER")
+                    (nome-capitulo c))
             (dado mundo :message-until) (+ (world-tick mundo) 240)))
     (when (and (= (dado mundo :chapter 1) 9) (not (dado mundo :hive-spawned)))
       (spawn-entity mundo :hive 42 37 :hp 5000 :data '(:objective t))
@@ -1064,7 +1138,11 @@ visivelmente desligados até existir capacidade, em vez de alternarem a 30 Hz."
                 (technology-definition-prerequisites tecnologia)))))
 
 (defun custo-tecnologia (tecnologia)
-  (or (cdr (assoc :science-red (technology-definition-cost tecnologia))) 1))
+  "Aceita qualquer pacote científico declarado pela tecnologia."
+  (or (cdr (first (technology-definition-cost tecnologia))) 1))
+
+(defun item-ciencia-tecnologia (tecnologia)
+  (or (car (first (technology-definition-cost tecnologia))) :science-red))
 
 (defun selecionar-pesquisa (mundo id)
   (when (tecnologia-disponivel-p mundo id)
@@ -1092,7 +1170,7 @@ visivelmente desligados até existir capacidade, em vez de alternarem a 30 Hz."
            (tecnologia (and proxima (find-technology proxima)))
            (inv (inventario-jogador mundo)))
       (when (and tecnologia (tecnologia-disponivel-p mundo proxima)
-                 (inventory-remove inv :science-red 1))
+                 (inventory-remove inv (item-ciencia-tecnologia tecnologia) 1))
         (incf (dado mundo :research-progress 0))
         (when (>= (dado mundo :research-progress) (custo-tecnologia tecnologia))
           (push proxima (world-research mundo))
@@ -1301,15 +1379,33 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
        (:basalt-wastes 0) (:crystal-grove 2) (:luminous-marsh 4) (:ashlands 6))
      (if (> (resource-noise mundo x y 1009) .5) 1 0)))
 
-(defun indice-prop-ambiental (mundo x y)
-  (when (and (> (resource-noise mundo x y 1031) .935)
-             (> (+ (abs x) (abs y)) 4))
-    (let ((n (resource-noise mundo x y 1063)))
-      (case (bioma-em mundo x y)
-        (:crystal-grove (+ 8 (floor (* 16 n))))
-        (:luminous-marsh (+ 8 (floor (* 24 n))))
-        (:basalt-wastes (+ 24 (floor (* 8 n))))
-        (:ashlands (+ 32 (floor (* 16 n))))))))
+(defun tinta-terreno (mundo x y)
+  "Contém a saturação do piso para recursos e estados continuarem dominantes."
+  (case (bioma-em mundo x y)
+    (:crystal-grove '(154 174 174)) (:luminous-marsh '(135 169 166))
+    (:basalt-wastes '(151 158 166)) (:ashlands '(174 151 139))))
+
+(defun prop-ambiental (mundo x y)
+  "Retorna índice e tamanho; ruínas são marcos raros, vegetação forma silhuetas."
+  (when (> (+ (abs x) (abs y)) 5)
+    (let ((densidade (resource-noise mundo x y 1031))
+          (variante (resource-noise mundo x y 1063))
+          (ruina (resource-noise mundo x y 1091)))
+      (cond
+        ((and (> (+ (abs x) (abs y)) 14) (> ruina .986))
+         (values (+ 8 (min 5 (floor (* variante 6)))) 62))
+        ((and (> (world-pollution mundo) 180) (> densidade .968))
+         (values 15 54))
+        ((and (< (world-pollution mundo) 80) (> densidade .984))
+         (values 14 54))
+        ((> densidade .952)
+         (values
+          (case (bioma-em mundo x y)
+            (:crystal-grove (if (> variante .55) 5 3))
+            (:luminous-marsh (if (> variante .5) 6 0))
+            (:basalt-wastes (if (> variante .62) 2 4))
+            (:ashlands (if (> variante .72) 7 2)))
+          (if (> variante .55) 58 46)))))))
 
 (defun visivel-no-mundo-p (x y &optional (margem 96))
   (multiple-value-bind (sx sy) (world-to-screen x y)
@@ -1689,19 +1785,19 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
           (let ((px (* x +tamanho-celula+)) (py (* y +tamanho-celula+))
                 (recurso (recurso-em mundo x y)))
             (draw-sprite :environment (indice-chao mundo x y)
-                         px py +tamanho-celula+ +tamanho-celula+ :world t)
+                         px py +tamanho-celula+ +tamanho-celula+ :world t
+                         :tint (tinta-terreno mundo x y))
             (when recurso
               (let ((indice (indice-recurso-sprite recurso)))
                 (when indice
                   (draw-sprite :terrain (+ 4 indice) px py +tamanho-celula+
                                +tamanho-celula+ :world t))))
             (unless recurso
-              (let ((prop (indice-prop-ambiental mundo x y)))
+              (multiple-value-bind (prop tam) (prop-ambiental mundo x y)
                 (when prop
-                  (let ((tam (if (<= 16 prop 23) 54 42)))
-                    (draw-sprite :environment prop
-                                 (- px (/ (- tam 32) 2)) (- py (- tam 32))
-                                 tam tam :world t)))))))))
+                  (draw-sprite :environment-props-v2 prop
+                               (- px (/ (- tam 32) 2)) (- py (- tam 32))
+                               tam tam :world t))))))))
     (map-buildings (lambda (b) (desenhar-construcao b :game-world mundo)) mundo)
     (map-entities
      (lambda (e)
@@ -1802,11 +1898,45 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
       (draw-rect 12 y 4 23 cor)
       (draw-text (subseq texto 0 (min 36 (length texto))) 22 (+ y 8) cor :scale 1))))
 
+(defun desenhar-objetivo-atual (mundo)
+  "Mantém a próxima ação e sua recompensa visíveis sem abrir menus."
+  (multiple-value-bind (texto atual alvo recompensa) (objetivo-capitulo mundo)
+    (let ((x 12) (y 168) (largura 270))
+      (draw-rect x y largura 86 '(4 10 17 238))
+      (draw-rect x y largura 86 '(53 91 108 255) :outline t)
+      (draw-rect x y 4 86 '(112 245 220 255))
+      (draw-text (translate :objective) (+ x 14) (+ y 10) '(112 245 220 255) :scale 1)
+      (draw-text (subseq texto 0 (min 38 (length texto))) (+ x 14) (+ y 29)
+                 '(222 234 239 255) :scale 1)
+      (draw-rect (+ x 14) (+ y 48) 190 7 '(18 32 42 255))
+      (draw-rect (+ x 14) (+ y 48) (* 190 (/ atual (float (max 1 alvo)))) 7
+                 '(244 190 79 255))
+      (draw-text (format nil "~D/~D" atual alvo) (+ x 215) (+ y 47)
+                 '(244 205 109 255) :scale 1)
+      (when recompensa
+        (let ((linha (format nil "~A: ~A" (translate :next-reward)
+                             (texto-itens recompensa))))
+          (draw-text (subseq linha 0 (min 40 (length linha))) (+ x 14) (+ y 67)
+                     '(155 181 193 255) :scale 1))))))
+
+(defun desenhar-notificacoes (mundo)
+  (let ((ativas (remove-if (lambda (n) (<= (getf n :until) (world-tick mundo)))
+                            (dado mundo :notifications nil))))
+    (setf (dado mundo :notifications) ativas)
+    (loop for notificacao in ativas for linha from 0
+          for x = (- (screen-width) 708) for y = (+ 140 (* linha 30))
+          for cor = (getf notificacao :color '(112 245 220 255))
+          for texto = (getf notificacao :text "") do
+      (draw-rect x y 430 25 '(4 10 17 236))
+      (draw-rect x y 4 25 cor)
+      (draw-text (subseq texto 0 (min 62 (length texto))) (+ x 13) (+ y 8)
+                 cor :scale 1))))
+
 (defun desenhar-ui (mundo)
   (draw-rect 0 0 (screen-width) 72 '(4 8 15 246))
   (draw-rect 0 71 (screen-width) 1 '(62 105 119 255))
   (draw-text (translate :title) 14 10 '(112 245 220 255) :scale 2)
-  (let* ((c (dado mundo :chapter 1)) (nome (aref *capitulos* (1- c)))
+  (let* ((c (dado mundo :chapter 1)) (nome (nome-capitulo (1- c)))
          (inv (inventario-jogador mundo)) (sel (aref *selecionados* *indice-selecao*)))
     (draw-text (translate :chapter c nome) 14 40 '(205 222 230 255) :scale 1)
     (desenhar-chip-recurso 4 (inventory-count inv :iron-plate) 290 10 '(202 219 229 255))
@@ -1828,6 +1958,7 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
     (desenhar-hotbar mundo)
     (if *mostrar-catalogo* (desenhar-catalogo mundo) (desenhar-minimapa mundo))
     (desenhar-alertas-fabrica mundo)
+    (desenhar-objetivo-atual mundo)
     (when *mostrar-ajuda*
       (draw-rect 12 (- (screen-height) 117) 470 23 '(7 12 20 235))
       (draw-text (translate :help) 22 (- (screen-height) 110) '(175 197 207 255) :scale 1))
@@ -1862,6 +1993,7 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
       (let ((msg (dado mundo :message "")))
         (draw-rect 260 92 (- (screen-width) 520) 38 '(38 16 50 225))
         (draw-text msg 280 105 '(235 131 255 255) :scale 2)))
+    (desenhar-notificacoes mundo)
     (desenhar-inspetor-predio mundo)
     ))
 
@@ -1948,9 +2080,30 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
   (draw-text "NO TELEMETRY. MIT LICENSE." 92 414 '(104 241 196 255) :scale 1)
   (desenhar-botao-menu (translate :back) 92 478 330 t))
 
+(defconstant +linhas-tecnologia+ 4)
+
+(defun colunas-tecnologia ()
+  "A árvore se adapta sem comprimir os cartões até ficarem ilegíveis."
+  (max 3 (min 6 (floor (- (screen-width) 64) 190))))
+
+(defun tecnologias-por-pagina ()
+  (* +linhas-tecnologia+ (colunas-tecnologia)))
+
+(defun pagina-tecnologia (indice)
+  (floor indice (tecnologias-por-pagina)))
+
+(defun intervalo-pagina-tecnologia ()
+  (let* ((tamanho (tecnologias-por-pagina))
+         (inicio (* (pagina-tecnologia *indice-tecnologia*) tamanho)))
+    (values inicio (min (length *ordem-tecnologias*) (+ inicio tamanho)))))
+
 (defun posicao-tecnologia (indice)
-  (values (+ 44 (* (mod indice 6) 200))
-          (+ 118 (* (floor indice 6) 112))))
+  (let* ((colunas (colunas-tecnologia))
+         (local (mod indice (tecnologias-por-pagina)))
+         (passo (if (= colunas 1) 0
+                    (/ (- (screen-width) 88 180) (1- colunas)))))
+    (values (+ 44 (round (* (mod local colunas) passo)))
+            (+ 112 (* (floor local colunas) 90)))))
 
 (defun estado-tecnologia (mundo id)
   (cond ((tecnologia-concluida-p mundo id) :completed)
@@ -1963,57 +2116,82 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
     (:completed '(73 211 160 255)) (:active '(243 184 72 255))
     (:available '(85 211 230 255)) (t '(67 77 90 255))))
 
+(defun nome-cartao-tecnologia (tecnologia)
+  "Abrevia nomes no nó; o painel inferior mantém o nome completo."
+  (let ((nome (string-upcase (technology-definition-name tecnologia))))
+    (if (> (length nome) 16)
+        (concatenate 'string (subseq nome 0 14) "..")
+        nome)))
+
 (defun desenhar-arvore-tecnologica (mundo)
   (draw-rect 0 0 (screen-width) (screen-height) '(3 8 15 247))
   (draw-text (translate :technology) 42 28 '(112 245 220 255) :scale 3)
-  (draw-text "ARROWS SELECT  ENTER RESEARCH  T/ESC CLOSE" 44 72 '(159 182 194 255))
-  ;; Dependências aparecem atrás dos nós e tornam os ramos legíveis.
-  (loop for id across *ordem-tecnologias* for indice from 0
-        for tech = (find-technology id) do
-    (multiple-value-bind (x y) (posicao-tecnologia indice)
-      (dolist (requisito (technology-definition-prerequisites tech))
-        (let ((origem (position requisito *ordem-tecnologias*)))
-          (when origem
-            (multiple-value-bind (ox oy) (posicao-tecnologia origem)
-              (draw-line (+ ox 90) (+ oy 36) (+ x 90) (+ y 36)
-                         (if (tecnologia-concluida-p mundo requisito)
-                             '(66 188 151 255) '(48 65 76 255)))))))))
-  (loop for id across *ordem-tecnologias* for indice from 0
-        for tech = (find-technology id) for estado = (estado-tecnologia mundo id) do
-    (multiple-value-bind (x y) (posicao-tecnologia indice)
-      (draw-rect x y 180 72 (if (= indice *indice-tecnologia*)
-                                '(24 46 58 255) '(8 19 29 255)))
-      (draw-rect x y 180 72 (if (= indice *indice-tecnologia*)
-                                '(241 188 76 255) (cor-estado-tecnologia estado)) :outline t)
-      (draw-text (subseq (string-upcase (technology-definition-name tech)) 0
-                         (min 22 (length (technology-definition-name tech))))
-                 (+ x 9) (+ y 12) '(214 231 238 255))
-      (draw-text (translate estado) (+ x 9) (+ y 39)
-                 (cor-estado-tecnologia estado))
-      (draw-text (format nil "~D" (custo-tecnologia tech)) (+ x 148) (+ y 39)
-                 '(192 174 238 255))))
+  (let* ((pagina (pagina-tecnologia *indice-tecnologia*))
+         (paginas (ceiling (length *ordem-tecnologias*) (tecnologias-por-pagina))))
+    (draw-text "ARROWS SELECT  ENTER RESEARCH  PGUP/PGDN PAGE  T/ESC CLOSE"
+               44 70 '(159 182 194 255))
+    (draw-text (format nil "PAGE ~D / ~D" (1+ pagina) paginas)
+               (- (screen-width) 150) 38 '(243 184 72 255))
+    (multiple-value-bind (inicio fim) (intervalo-pagina-tecnologia)
+      ;; Dependências da página aparecem atrás dos nós; conexões externas recebem
+      ;; uma marca no cartão em vez de linhas atravessando páginas invisíveis.
+      (loop for indice from inicio below fim
+            for id = (aref *ordem-tecnologias* indice)
+            for tech = (find-technology id) do
+        (multiple-value-bind (x y) (posicao-tecnologia indice)
+          (dolist (requisito (technology-definition-prerequisites tech))
+            (let ((origem (position requisito *ordem-tecnologias*)))
+              (when (and origem (= (pagina-tecnologia origem) pagina))
+                (multiple-value-bind (ox oy) (posicao-tecnologia origem)
+                  (draw-line (+ ox 90) (+ oy 36) (+ x 90) (+ y 36)
+                             (if (tecnologia-concluida-p mundo requisito)
+                                 '(66 188 151 255) '(48 65 76 255)))))))))
+      (loop for indice from inicio below fim
+            for id = (aref *ordem-tecnologias* indice)
+            for tech = (find-technology id)
+            for estado = (estado-tecnologia mundo id) do
+        (multiple-value-bind (x y) (posicao-tecnologia indice)
+          (draw-rect x y 180 72 (if (= indice *indice-tecnologia*)
+                                    '(24 46 58 255) '(8 19 29 255)))
+          (draw-rect x y 180 72 (if (= indice *indice-tecnologia*)
+                                    '(241 188 76 255) (cor-estado-tecnologia estado)) :outline t)
+          (draw-text (nome-cartao-tecnologia tech)
+                     (+ x 9) (+ y 12) '(214 231 238 255))
+          (draw-text (translate estado) (+ x 9) (+ y 39)
+                     (cor-estado-tecnologia estado))
+          (draw-text (format nil "~D" (custo-tecnologia tech)) (+ x 148) (+ y 39)
+                     '(192 174 238 255)))))
   (let* ((id (aref *ordem-tecnologias* *indice-tecnologia*))
          (tech (find-technology id)) (estado (estado-tecnologia mundo id))
          (ativo (eq id (dado mundo :active-research)))
          (progresso (if ativo (dado mundo :research-progress 0) 0))
-         (custo (custo-tecnologia tech)))
-    (draw-rect 42 582 (- (screen-width) 84) 104 '(6 15 24 252))
-    (draw-rect 42 582 (- (screen-width) 84) 104 (cor-estado-tecnologia estado) :outline t)
-    (draw-text (technology-definition-name tech) 62 601 '(235 242 245 255) :scale 2)
-    (draw-text (format nil "UNLOCKS: ~{~A~^, ~}" (technology-definition-unlocks tech))
-               62 632 '(170 191 202 255))
-    (draw-rect 62 657 520 10 '(17 30 39 255))
-    (draw-rect 62 657 (* 520 (/ (min progresso custo) (float custo))) 10
+         (custo (custo-tecnologia tech))
+         (painel-y 476)
+         (painel-h (max 138 (min 190 (- (screen-height) painel-y 18))))
+         (barra-y (+ painel-y painel-h -34)))
+    (draw-rect 42 painel-y (- (screen-width) 84) painel-h '(6 15 24 252))
+    (draw-rect 42 painel-y (- (screen-width) 84) painel-h
+               (cor-estado-tecnologia estado) :outline t)
+    (draw-text (technology-definition-name tech) 62 (+ painel-y 18)
+               '(235 242 245 255) :scale 2)
+    (draw-text (string-upcase (translate estado)) 62 (+ painel-y 49)
                (cor-estado-tecnologia estado))
-    (draw-text (format nil "~D / ~D" progresso custo) 598 657 '(218 229 234 255))))
+    (draw-text (format nil "UNLOCKS: ~{~A~^, ~}" (technology-definition-unlocks tech))
+               62 (+ painel-y 78) '(170 191 202 255))
+    (draw-rect 62 barra-y 520 12 '(17 30 39 255))
+    (draw-rect 62 barra-y (* 520 (/ (min progresso custo) (float custo))) 12
+               (cor-estado-tecnologia estado))
+    (draw-text (format nil "SCIENCE ~D / ~D" progresso custo) 598 (- barra-y 2)
+               '(218 229 234 255)))))
 
 (defun clicar-arvore-tecnologica (mundo x y)
-  (loop for indice below (length *ordem-tecnologias*) do
-    (multiple-value-bind (nx ny) (posicao-tecnologia indice)
-      (when (and (<= nx x (+ nx 180)) (<= ny y (+ ny 72)))
-        (setf *indice-tecnologia* indice)
-        (selecionar-pesquisa mundo (aref *ordem-tecnologias* indice))
-        (return t)))))
+  (multiple-value-bind (inicio fim) (intervalo-pagina-tecnologia)
+    (loop for indice from inicio below fim do
+      (multiple-value-bind (nx ny) (posicao-tecnologia indice)
+        (when (and (<= nx x (+ nx 180)) (<= ny y (+ ny 72)))
+          (setf *indice-tecnologia* indice)
+          (selecionar-pesquisa mundo (aref *ordem-tecnologias* indice))
+          (return t))))))
 
 (defun renderizar (mundo alpha)
   (declare (ignore alpha))
@@ -2115,26 +2293,40 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
                          (dado mundo :recent-builds nil))))
     (setf (dado mundo :recent-builds) (subseq historico 0 (min 32 (length historico))))))
 
+(defun notificar-bloqueio-construcao (mundo texto)
+  (unless (and (string= texto (dado mundo :last-build-error ""))
+               (< (- (world-tick mundo) (dado mundo :last-build-error-tick -100)) 30))
+    (setf (dado mundo :last-build-error) texto
+          (dado mundo :last-build-error-tick) (world-tick mundo))
+    (notificar mundo texto :duracao 75 :cor '(255 111 128 255))))
+
 (defun construir-na-celula (mundo x y)
   "Constrói uma célula e registra uma operação reversível de curta duração."
   (let* ((kind (aref *selecionados* *indice-selecao*)) (def (find-building kind)))
-    (when (and (construcao-desbloqueada-p mundo kind)
-               (alcance-personagem-p mundo x y)
-               (null (building-at mundo x y)) (consumir-custo mundo def))
-      (let ((predio
-              (place-building mundo kind x y :rotation *rotacao-construcao*
-                              :recipe (when (member kind
-                                                    '(:stone-furnace :electric-furnace
-                                                      :assembler :chemical-plant :refinery
-                                                      :laboratory))
-                                        (aref *receitas-selecionaveis*
-                                              *indice-receita*)))))
-        (when predio
-          (registrar-construcao-recente mundo predio)
-          (iniciar-acao-personagem mundo :building)
-          (criar-efeito mundo :vfx-spark (+ x .5) (+ y .5) :duracao 18 :tamanho 42)
-          (play-sound :build))
-        predio))))
+    (cond
+      ((not (construcao-desbloqueada-p mundo kind))
+       (notificar-bloqueio-construcao mundo (translate :locked-building)) nil)
+      ((not (alcance-personagem-p mundo x y))
+       (notificar-bloqueio-construcao mundo (translate :out-of-range)) nil)
+      ((building-at mundo x y)
+       (notificar-bloqueio-construcao mundo (translate :occupied)) nil)
+      ((not (consumir-custo mundo def))
+       (notificar-bloqueio-construcao mundo (translate :no-material)) nil)
+      (t
+       (let ((predio
+               (place-building mundo kind x y :rotation *rotacao-construcao*
+                               :recipe (when (member kind
+                                                     '(:stone-furnace :electric-furnace
+                                                       :assembler :chemical-plant :refinery
+                                                       :laboratory))
+                                         (aref *receitas-selecionaveis*
+                                               *indice-receita*)))))
+         (when predio
+           (registrar-construcao-recente mundo predio)
+           (iniciar-acao-personagem mundo :building)
+           (criar-efeito mundo :vfx-spark (+ x .5) (+ y .5) :duracao 18 :tamanho 42)
+           (play-sound :build))
+         predio)))))
 
 (defun construir-em-tela (mundo sx sy)
   (let ((celula (celula-em-tela sx sy)))
@@ -2351,18 +2543,26 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
 (defun entrada-arvore-tecnologica (mundo tipo dados)
   (case tipo
     (:key-down
-     (let ((k (first dados)))
+     (let ((k (first dados))
+           (total (length *ordem-tecnologias*))
+           (colunas (colunas-tecnologia))
+           (pagina (tecnologias-por-pagina)))
        (cond ((or (sdl2:scancode= k :scancode-escape)
                   (sdl2:scancode= k :scancode-t))
               (fechar-arvore-tecnologica))
              ((sdl2:scancode= k :scancode-left)
-              (setf *indice-tecnologia* (mod (1- *indice-tecnologia*) 24)))
+              (setf *indice-tecnologia* (mod (1- *indice-tecnologia*) total)))
              ((sdl2:scancode= k :scancode-right)
-              (setf *indice-tecnologia* (mod (1+ *indice-tecnologia*) 24)))
+              (setf *indice-tecnologia* (mod (1+ *indice-tecnologia*) total)))
              ((sdl2:scancode= k :scancode-up)
-              (setf *indice-tecnologia* (mod (- *indice-tecnologia* 6) 24)))
+              (setf *indice-tecnologia* (mod (- *indice-tecnologia* colunas) total)))
              ((sdl2:scancode= k :scancode-down)
-              (setf *indice-tecnologia* (mod (+ *indice-tecnologia* 6) 24)))
+              (setf *indice-tecnologia* (mod (+ *indice-tecnologia* colunas) total)))
+             ((sdl2:scancode= k :scancode-pageup)
+              (setf *indice-tecnologia* (max 0 (- *indice-tecnologia* pagina))))
+             ((sdl2:scancode= k :scancode-pagedown)
+              (setf *indice-tecnologia* (min (1- total)
+                                             (+ *indice-tecnologia* pagina))))
              ((or (sdl2:scancode= k :scancode-return)
                   (sdl2:scancode= k :scancode-kp-enter))
               (selecionar-pesquisa mundo
@@ -2372,9 +2572,21 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
      (destructuring-bind (botao x y) dados
        (when (= botao 1) (clicar-arvore-tecnologica mundo x y))) t)
     (:controller-down
-     (case (first dados)
-       (0 (selecionar-pesquisa mundo (aref *ordem-tecnologias* *indice-tecnologia*)))
-       (1 (fechar-arvore-tecnologica))) t)
+     (let ((botao (first dados))
+           (total (length *ordem-tecnologias*))
+           (colunas (colunas-tecnologia))
+           (pagina (tecnologias-por-pagina)))
+       (case botao
+         (0 (selecionar-pesquisa mundo (aref *ordem-tecnologias* *indice-tecnologia*)))
+         (1 (fechar-arvore-tecnologica))
+         (9 (setf *indice-tecnologia* (max 0 (- *indice-tecnologia* pagina))))
+         (10 (setf *indice-tecnologia* (min (1- total)
+                                            (+ *indice-tecnologia* pagina))))
+         (11 (setf *indice-tecnologia* (mod (- *indice-tecnologia* colunas) total)))
+         (12 (setf *indice-tecnologia* (mod (+ *indice-tecnologia* colunas) total)))
+         (13 (setf *indice-tecnologia* (mod (1- *indice-tecnologia*) total)))
+         (14 (setf *indice-tecnologia* (mod (1+ *indice-tecnologia*) total)))))
+     t)
     (otherwise t)))
 
 (defun entrada (mundo tipo &rest dados)
@@ -2469,6 +2681,8 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
                          (merge-pathnames "assets/sprites/items-expansion-v2.png" *raiz*) 5 5)
   (register-sprite-sheet :environment
                          (merge-pathnames "assets/sprites/environment-static.png" *raiz*) 8 6)
+  (register-sprite-sheet :environment-props-v2
+                         (merge-pathnames "assets/sprites/environment-props-v2.png" *raiz*) 4 4)
   (register-sprite-sheet :terrain (merge-pathnames "assets/sprites/terrain-atlas.png" *raiz*) 4 4)
   (register-sprite-sheet :units (merge-pathnames "assets/sprites/units-atlas.png" *raiz*) 4 3)
   (register-sprite-sheet :machines-animated

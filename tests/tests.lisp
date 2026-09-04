@@ -240,6 +240,23 @@
 (defun teste-arvore-tecnologica ()
   (preparar)
   (let ((w (asterion-assembly:new-game :difficulty :peaceful)))
+    (verificar (= 36 (length asterion-assembly::*ordem-tecnologias*))
+               "a árvore 2.0 deve expor as 36 tecnologias")
+    (let ((asterion-assembly::*indice-tecnologia* 35))
+      (multiple-value-bind (inicio fim)
+          (asterion-assembly::intervalo-pagina-tecnologia)
+        (verificar (<= inicio 35 (1- fim))
+                   "a última tecnologia deve estar numa página navegável")))
+    (let ((asterion-assembly::*indice-tecnologia* 0))
+      (asterion-assembly::entrada-arvore-tecnologica w :controller-down '(10))
+      (verificar (plusp asterion-assembly::*indice-tecnologia*)
+                 "ombro direito do gamepad deve avançar a página"))
+    (let ((avancada (find-technology :bulk-logistics)))
+      (verificar (= 110 (asterion-assembly::custo-tecnologia avancada))
+                 "ciência avançada deve preservar seu custo declarado")
+      (verificar (eq :science-purple
+                     (asterion-assembly::item-ciencia-tecnologia avancada))
+                 "tecnologia avançada deve consumir o pacote científico correto"))
     (verificar (asterion-assembly::tecnologia-disponivel-p w :automation))
     (verificar (not (asterion-assembly::tecnologia-disponivel-p w :logistics))
                "pré-requisito deve bloquear o ramo")
@@ -251,6 +268,31 @@
     (verificar (member :automation (world-research w)) "pesquisa ativa deve concluir")
     (verificar (asterion-assembly::construcao-desbloqueada-p w :assembler)
                "pesquisa deve liberar a construção")))
+
+(defun teste-objetivos-recompensas-e-feedback ()
+  (preparar)
+  (let* ((w (asterion-assembly:new-game :difficulty :peaceful))
+         (inventario (asterion-assembly::inventario-jogador w))
+         (ferro (inventory-count inventario :iron-plate)))
+    (multiple-value-bind (texto atual alvo recompensa)
+        (asterion-assembly::objetivo-capitulo w)
+      (verificar (search "MINER" texto))
+      (verificar (= 0 atual))
+      (verificar (= 2 alvo))
+      (verificar recompensa "objetivo deve antecipar sua recompensa"))
+    (place-building w :miner 6 6)
+    (place-building w :miner 7 6)
+    (asterion-assembly::avancar-capitulo w)
+    (verificar (= 2 (gethash :chapter (world-game-data w)))
+               "cumprir objetivo deve avançar o capítulo")
+    (verificar (= (+ ferro 35) (inventory-count inventario :iron-plate))
+               "avanço deve conceder o pacote de recompensa")
+    (verificar (gethash :notifications (world-game-data w))
+               "recompensa precisa de feedback visual")
+    (asterion-assembly::notificar-bloqueio-construcao w "BLOCKED")
+    (verificar (find "BLOCKED" (gethash :notifications (world-game-data w))
+                     :key (lambda (n) (getf n :text)) :test #'string=)
+               "ações inválidas devem explicar por que falharam")))
 
 (defun teste-save-roundtrip ()
   (preparar)
@@ -440,6 +482,7 @@
                     teste-producao-e-logistica teste-item-no-braco
                     teste-feedback-da-fabrica teste-energia-sem-piscar teste-save-roundtrip
                     teste-protagonista-ecossistema-e-vfx teste-arvore-tecnologica
+                    teste-objetivos-recompensas-e-feedback
                     teste-divisor-logistico teste-arrasto-e-desfazer
                     teste-pathfinding-e-trilhos teste-mod teste-desempenho-basico
                     teste-fundacao-2-0
