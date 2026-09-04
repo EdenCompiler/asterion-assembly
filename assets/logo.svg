@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300">
+  <defs>
+    <linearGradient id="title" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#6ff2dc"/><stop offset=".55" stop-color="#d4fff8"/>
+      <stop offset="1" stop-color="#b687ff"/>
+    </linearGradient>
+  </defs>
+  <text x="600" y="142" text-anchor="middle" fill="url(#title)"
+        font-family="DejaVu Sans, sans-serif" font-size="92" font-weight="800"
+        letter-spacing="12">ASTERION</text>
+  <path d="M158 174h884" stroke="#386378" stroke-width="3"/>
+  <text x="600" y="238" text-anchor="middle" fill="#efb84e"
+        font-family="DejaVu Sans, sans-serif" font-size="42" font-weight="600"
+        letter-spacing="18">ASSEMBLY</text>
+</svg>

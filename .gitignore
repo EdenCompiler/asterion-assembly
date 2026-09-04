@@ -1,0 +1,20 @@
+# Artefatos de compilação e empacotamento
+/build/
+/dist/
+*.fasl
+*.core
+
+# Estado local do jogador
+/saves/
+*.save
+
+# Dependências temporárias baixadas pela CI local
+/quicklisp.lisp
+
+# Logs, editores e sistema operacional
+*.log
+*~
+.#*
+.DS_Store
+.idea/
+.vscode/

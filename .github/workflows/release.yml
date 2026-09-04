@@ -1,0 +1,47 @@
+name: build-and-test
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y sbcl libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev zip curl ffmpeg xvfb xdotool imagemagick
+      - run: curl -O https://beta.quicklisp.org/quicklisp.lisp && sbcl --non-interactive --load quicklisp.lisp --eval '(quicklisp-quickstart:install)' --eval '(ql:quickload :sdl2)'
+      - run: make test
+      - run: make playtest
+      - run: make package-linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: asterion-assembly-linux-x64
+          path: dist/asterion-assembly-linux-x64.zip
+
+  build-windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: crazy-max/ghaction-chocolatey@v3
+        with:
+          args: install sbcl -y
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-SDL2
+            mingw-w64-x86_64-SDL2_image
+            mingw-w64-x86_64-SDL2_mixer
+      - shell: powershell
+        run: |
+          $env:SDL_BIN="C:\msys64\mingw64\bin"
+          $env:PATH="$env:SDL_BIN;$env:PATH"
+          Invoke-WebRequest https://beta.quicklisp.org/quicklisp.lisp -OutFile quicklisp.lisp
+          sbcl --non-interactive --load quicklisp.lisp --eval '(quicklisp-quickstart:install)' --eval '(ql:quickload :sdl2)'
+          ./scripts/build-windows.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: asterion-assembly-windows-x64
+          path: dist/asterion-assembly-windows-x64.zip
