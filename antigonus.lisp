@@ -1368,10 +1368,19 @@
         (enviar-entrada :key-up codigo))))
 (defun executar-sdl ()
   (sdl2:with-init (:video :audio :gamecontroller)
+    ;; A versão 2.0 fixa o backend SDL no driver OpenGL e habilita o lote
+    ;; interno de comandos. Não há seleção automática de Direct3D/software.
+    (sdl2:set-hint :render-driver "opengl")
+    (sdl2:set-hint :render-batching "1")
+    (sdl2:set-hint :render-scale-quality "0")
+    (sdl2:gl-set-attrs :context-major-version 3 :context-minor-version 3
+                       :context-profile-mask 2 :doublebuffer 1)
     (sdl2:with-window (janela :title (game-config-title antigonus::*configuracao-atual*)
                               :w antigonus::*largura-tela* :h antigonus::*altura-tela*
-                              :flags '(:shown :resizable))
+                              :flags '(:shown :resizable :opengl))
       (sdl2:with-renderer (renderer janela :flags '(:accelerated :presentvsync))
+        (engine-log :info "Backend gráfico fixado em OpenGL 3.3, batching SDL ativo: ~A"
+                    (sdl2:get-renderer-info renderer))
         ;; Mantém uma área lógica estável ao redimensionar. A SDL escala e
         ;; letterboxa o quadro completo, evitando HUD recortado e coordenadas
         ;; de mouse divergentes em janelas com outra proporção.

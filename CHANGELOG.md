@@ -11,6 +11,8 @@
 - Added original generated industrial atlases for 16 buildings and 24 item icons.
 - Added finite deposits that scale with distance and construction-drone ghost handling.
 - Added a paginated static build catalog and expanded virtual rendering coverage.
+- Fixed the runtime to an OpenGL 3.3 SDL driver with command batching enabled.
+- Validated the self-contained Linux x64 ZIP through an isolated package smoke test.
 
 ## 1.1.0 — 2026-09-04
 

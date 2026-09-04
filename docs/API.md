@@ -43,6 +43,11 @@ Schema-1 saves are backed up before migration. Aggregated belt inventory is
 distributed deterministically over two lanes and legacy shuttle trains are
 marked for equivalent schedule generation.
 
+The interactive runtime requests an OpenGL 3.3 compatibility context through
+SDL2 and fixes `SDL_RENDER_DRIVER` to OpenGL with render batching enabled. A
+missing OpenGL backend is a startup error; the 2.0 runtime does not silently
+switch to a software or Direct3D renderer.
+
 ## Exemplo
 
 ```lisp
