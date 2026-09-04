@@ -489,7 +489,9 @@
            (getf (building-state predio) :powered t))))
 
 (defun transportador-p (predio)
-  (and predio (member (building-kind predio) '(:belt :fast-belt :splitter))))
+  (and predio (member (building-kind predio)
+                      '(:belt :fast-belt :splitter :underground-belt
+                        :filter-splitter :loader))))
 
 (defun pistas-predio (predio)
   "Retorna as duas pistas persistentes de um transportador."
@@ -736,15 +738,38 @@ visivelmente desligados até existir capacidade, em vez de alternarem a 30 Hz."
                    (return t))))))
 
 (defun destino-transportador (mundo predio indice-pista)
-  (if (eq (building-kind predio) :splitter)
+  (cond
+    ((member (building-kind predio) '(:splitter :filter-splitter))
       (let* ((saidas (saidas-divisor predio))
-             (preferida (mod (+ (getf (building-state predio) :next-output 0)
-                                indice-pista) 2))
+             (item (let* ((pista (aref (pistas-predio predio) indice-pista))
+                          (i (1- (belt-lane-count pista))))
+                     (and (>= i 0) (aref (belt-lane-items pista) i))))
+             (filtro (getf (building-state predio) :filter))
+             (preferida (if (and (eq (building-kind predio) :filter-splitter) filtro)
+                            (if (eq item filtro) 0 1)
+                            (mod (+ (getf (building-state predio) :next-output 0)
+                                    indice-pista) 2)))
              (posicao (nth preferida saidas)))
-        (values (building-at mundo (car posicao) (cdr posicao)) preferida))
-      (let ((d (direcao (building-rotation predio))))
-        (values (building-at mundo (+ (building-x predio) (car d))
-                             (+ (building-y predio) (cdr d))) indice-pista))))
+        (values (building-at mundo (car posicao) (cdr posicao)) preferida)))
+    ((eq (building-kind predio) :underground-belt)
+     (let* ((d (direcao (building-rotation predio)))
+            (par (loop for distancia from 1 to 5
+                       for candidato = (building-at
+                                        mundo
+                                        (+ (building-x predio) (* distancia (car d)))
+                                        (+ (building-y predio) (* distancia (cdr d))))
+                       when (and candidato (eq (building-kind candidato)
+                                               :underground-belt)
+                                 (= (building-rotation candidato)
+                                    (building-rotation predio)))
+                         return candidato)))
+       (values (or par (building-at mundo (+ (building-x predio) (car d))
+                                    (+ (building-y predio) (cdr d))))
+               indice-pista)))
+    (t
+     (let ((d (direcao (building-rotation predio))))
+       (values (building-at mundo (+ (building-x predio) (car d))
+                            (+ (building-y predio) (cdr d))) indice-pista)))))
 
 (defun transferir-frente-pista (mundo predio indice-pista)
   "Transfere quando a posição real chegou à borda e o destino aceitou."
@@ -760,7 +785,7 @@ visivelmente desligados até existir capacidade, em vez de alternarem a 30 Hz."
             (belt-lane-remove-front pista)
             (registrar-vazao predio pilha)
             (incf (dado mundo :items-moved 0) pilha)
-            (when (eq (building-kind predio) :splitter)
+            (when (member (building-kind predio) '(:splitter :filter-splitter))
               (setf (getf (building-state predio) :next-output)
                     (mod (1+ saida) 2)))
             t))))))
@@ -772,15 +797,17 @@ visivelmente desligados até existir capacidade, em vez de alternarem a 30 Hz."
     ;; a mesma ordem em qualquer implementação de hash-table.
     (dolist (b (sort predios #'> :key #'building-id))
       (case (building-kind b)
-        ((:belt :fast-belt :splitter)
+        ((:belt :fast-belt :splitter :underground-belt :filter-splitter :loader)
          (when (predio-operacional-p b)
            (alimentar-pistas-do-buffer b)
            (dotimes (pista 2)
              (advance-belt-lane
               (aref (pistas-predio b) pista)
-              (if (eq (building-kind b) :fast-belt) 16384 8192)))
+              (case (building-kind b)
+                ((:fast-belt :underground-belt) 16384) (:loader 32768)
+                (otherwise 8192))))
            (dotimes (pista 2) (transferir-frente-pista mundo b pista))))
-        ((:inserter :long-inserter)
+        ((:inserter :long-inserter :stack-inserter)
          (when (predio-operacional-p b)
            (let* ((d (direcao (building-rotation b)))
                   (dist (if (eq (building-kind b) :long-inserter) 2 1))
@@ -789,6 +816,8 @@ visivelmente desligados até existir capacidade, em vez de alternarem a 30 Hz."
                   (alvo (building-at mundo (+ (building-x b) (* (car d) dist))
                                      (+ (building-y b) (* (cdr d) dist)))))
              (when (and origem alvo (zerop (mod (world-tick mundo) 8)))
+               (dotimes (transferencia (if (eq (building-kind b) :stack-inserter) 4 1))
+                 (declare (ignore transferencia))
                (let ((item (if (transportador-p origem)
                                (multiple-value-bind (i pilha presente)
                                    (belt-lane-remove-front
@@ -807,7 +836,7 @@ visivelmente desligados até existir capacidade, em vez de alternarem a 30 Hz."
                          (setf (getf (building-state b) :carried-item) item
                                (getf (building-state b) :carry-start)
                                (world-tick mundo)))
-                       (inventory-add (building-inventory origem) item 1))))))))
+                       (inventory-add (building-inventory origem) item 1)))))))))
       (when (and (transportador-p b) (zerop (mod (world-tick mundo) 30)))
         (setf (getf (building-state b) :flow-rate)
               (getf (building-state b) :flow-window 0)
@@ -1296,7 +1325,8 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
   (let* ((kind (building-kind b)) (tick (world-tick mundo))
          (d (direcao (building-rotation b))))
     (cond
-      ((member kind '(:belt :fast-belt :splitter))
+      ((member kind '(:belt :fast-belt :splitter :underground-belt
+                      :filter-splitter :loader))
        ;; A posição desenhada é a posição inteira da simulação. Não há relógio
        ;; visual independente, portanto congestionamento e brownout não piscam.
        (let ((pistas (pistas-predio b))
@@ -1311,7 +1341,7 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
                  (desenhar-item item
                                 (+ x 9 (* (car d) deslocamento) (* px lateral))
                                 (+ y 9 (* (cdr d) deslocamento) (* py lateral)) 12)))))))
-      ((member kind '(:inserter :long-inserter))
+      ((member kind '(:inserter :long-inserter :stack-inserter))
        (let* ((item (getf (building-state b) :carried-item))
               (inicio (getf (building-state b) :carry-start -100))
               (idade (- tick inicio)))
@@ -1443,7 +1473,7 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
                (- (- y1 (* dy 5)) (* py 4)) cor :world t)))
 
 (defun desenhar-seta-fluxo (predio cor)
-  (if (eq (building-kind predio) :splitter)
+  (if (member (building-kind predio) '(:splitter :filter-splitter))
       (let* ((rotacao (building-rotation predio))
              (ramal (mod (1+ rotacao) 4)))
         (desenhar-seta-fluxo-em (building-x predio) (building-y predio) rotacao cor)
@@ -1458,12 +1488,13 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
       (let ((x (* (building-x foco) +tamanho-celula+))
             (y (* (building-y foco) +tamanho-celula+)))
         (draw-rect x y 32 32 '(245 211 91 255) :world t :outline t))
-      (when (member (building-kind foco) '(:belt :fast-belt :splitter
-                                           :inserter :long-inserter))
+      (when (or (transportador-p foco)
+                (member (building-kind foco) '(:inserter :long-inserter :stack-inserter)))
         (map-buildings
          (lambda (b)
-           (when (and (member (building-kind b) '(:belt :fast-belt :splitter
-                                                  :inserter :long-inserter))
+           (when (and (or (transportador-p b)
+                          (member (building-kind b)
+                                  '(:inserter :long-inserter :stack-inserter)))
                       (visivel-no-mundo-p (* (building-x b) +tamanho-celula+)
                                           (* (building-y b) +tamanho-celula+)))
              (desenhar-seta-fluxo b (if (predio-operacional-p b)
@@ -1495,11 +1526,11 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
                          ((plusp potencia) (format nil "POWER USE ~D MW" potencia))
                          (t "POWER PASSIVE"))
                    (+ x 72) (+ y 54) '(158 205 220 255) :scale 1)
-        (when (member (building-kind b) '(:belt :fast-belt :splitter
-                                          :inserter :long-inserter))
+        (when (or (transportador-p b)
+                  (member (building-kind b) '(:inserter :long-inserter :stack-inserter)))
           (draw-text (format nil "~A: ~A~A" (translate :flow)
                              (nome-direcao (building-rotation b))
-                             (if (eq (building-kind b) :splitter)
+                             (if (member (building-kind b) '(:splitter :filter-splitter))
                                  (format nil "/~A" (nome-direcao
                                                     (1+ (building-rotation b)))) ""))
                      (+ x 250) (+ y 54) '(108 255 215 255) :scale 1))

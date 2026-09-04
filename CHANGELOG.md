@@ -5,6 +5,7 @@
 - Added deterministic 32×32 chunks, compact resource stores and schema-2 migration.
 - Added stable parallel job command buffers and canonical simulation hashing.
 - Added exact two-lane belt positions with save persistence and visible congestion.
+- Added working underground belts, filter splitters, loaders and stack inserters.
 - Added fluid pressure, power priority/storage, typed circuit networks and blueprints.
 - Added rail graphs, block reservations, schedules and deadlock-cycle reporting.
 - Expanded Asterion to 70 items, 90 recipes, 52 buildings and 36 technologies.

@@ -404,6 +404,35 @@
                                        sum (belt-lane-count pista))))))
           (when (probe-file arquivo) (delete-file arquivo)))))))
 
+(defun teste-logistica-especializada-2-0 ()
+  (preparar)
+  (let ((w (asterion-assembly:new-game :difficulty :peaceful)))
+    (let ((entrada (place-building w :underground-belt 30 30 :rotation 0))
+          (saida (place-building w :underground-belt 34 30 :rotation 0))
+          (destino (place-building w :belt 35 30 :rotation 0)))
+      (declare (ignore saida))
+      (inventory-add (building-inventory entrada) :iron-ore 1)
+      (dotimes (i 9) (declare (ignore i)) (simulate-tick w))
+      (verificar (= 1 (contar-item-transportador destino :iron-ore))
+                 "esteira subterrânea deve atravessar até cinco células"))
+    (let ((divisor (place-building w :filter-splitter 40 40 :rotation 0
+                                  :state '(:filter :iron-ore)))
+          (ferro (place-building w :belt 41 40 :rotation 0))
+          (cobre (place-building w :belt 40 41 :rotation 1)))
+      (inventory-add (building-inventory divisor) :iron-ore 1)
+      (inventory-add (building-inventory divisor) :copper-ore 1)
+      (dotimes (i 10) (declare (ignore i)) (simulate-tick w))
+      (verificar (= 1 (contar-item-transportador ferro :iron-ore)))
+      (verificar (= 1 (contar-item-transportador cobre :copper-ore))))
+    (let ((origem (place-building w :stone-furnace 50 50))
+          (braco (place-building w :stack-inserter 51 50 :rotation 0))
+          (destino (place-building w :stone-furnace 52 50)))
+      (declare (ignore braco))
+      (inventory-add (building-inventory origem) :gear 4)
+      (dotimes (i 8) (declare (ignore i)) (simulate-tick w))
+      (verificar (= 4 (inventory-count (building-inventory destino) :gear))
+                 "braço empilhador deve transferir quatro itens por ciclo"))))
+
 (defun run-all ()
   (setf *executados* 0)
   (dolist (teste '(teste-dsl-e-catalogo teste-animacoes
@@ -415,6 +444,7 @@
                     teste-pathfinding-e-trilhos teste-mod teste-desempenho-basico
                     teste-fundacao-2-0
                     teste-pistas-fluidos-energia-e-circuitos-2-0
-                    teste-ferrovia-e-plantas-2-0 teste-integracao-asterion-2-0))
+                    teste-ferrovia-e-plantas-2-0 teste-integracao-asterion-2-0
+                    teste-logistica-especializada-2-0))
     (format t "~&[TEST] ~A~%" teste) (funcall teste))
   (format t "~&OK — ~D verificações concluídas.~%" *executados*) t)
