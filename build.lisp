@@ -8,9 +8,12 @@
 
 (let ((diretorio-sdl (uiop:getenv "SDL_BIN")))
   (when diretorio-sdl
-    (pushnew (uiop:ensure-directory-pathname diretorio-sdl)
-             cffi:*foreign-library-directories*
-             :test #'equal)))
+    ;; A resolução dinâmica mantém este arquivo legível antes de CFFI existir.
+    (let ((variavel-diretorios
+            (find-symbol "*FOREIGN-LIBRARY-DIRECTORIES*" "CFFI")))
+      (pushnew (uiop:ensure-directory-pathname diretorio-sdl)
+               (symbol-value variavel-diretorios)
+               :test #'equal))))
 
 (ql:quickload :asterion-assembly :silent t)
 
