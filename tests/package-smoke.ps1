@@ -12,6 +12,8 @@ try {
         # ExitCode nulo no PowerShell 5 mesmo após WaitForExit.
         $Process = [System.Diagnostics.Process]::new()
         $Process.StartInfo.FileName = Join-Path (Get-Location) 'asterion-assembly.exe'
+        $Process.StartInfo.WorkingDirectory = (Get-Location).Path
+        $Process.StartInfo.EnvironmentVariables['PATH'] = "$((Get-Location).Path);$env:SystemRoot\System32;$env:SystemRoot"
         $Process.StartInfo.Arguments = $Mode
         $Process.StartInfo.UseShellExecute = $false
         $Process.StartInfo.CreateNoWindow = $true
