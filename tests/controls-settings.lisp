@@ -93,6 +93,9 @@
   (verificar (> (length (asterion-assembly::sinais-disponiveis-circuito)) 70)))
 
 (defun teste-configuracoes-persistentes ()
+  (let* ((w (asterion-assembly:new-game)) (antes (simulation-state-hash w)))
+    (setf (gethash :save-dir (world-game-data w)) #P"another-location/saves/")
+    (verificar (= antes (simulation-state-hash w)) "hash industrial independe da pasta do jogador"))
   (let* ((antes (asterion-assembly::dados-configuracoes))
          (novo (copy-list antes))
          (arquivo (merge-pathnames (format nil "profile-~A.sexp" (gensym)) (uiop:temporary-directory)))

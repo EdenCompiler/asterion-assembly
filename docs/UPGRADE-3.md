@@ -54,7 +54,7 @@ direita alterna paleta. Analógico esquerdo move o personagem.
 
 ## Evidências locais
 
-- `make test`: 319 verificações, incluindo os seis desafios nas quatro
+- `make test`: 320 verificações, incluindo os seis desafios nas quatro
   dificuldades, casos negativos, conservação da bomba e eventos de gamepad.
 - Playtests: oito telas de menu, 27 capturas gerais, cinco de circuitos,
   três de configurações e um readback de gamepad SDL (44 imagens).

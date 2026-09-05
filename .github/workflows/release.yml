@@ -15,6 +15,13 @@ jobs:
       - run: make playtest
       - run: make smoke-package
       - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-smoke-evidence
+          path: |
+            build/package-smoke/**/*.log
+            build/package-smoke/**/*.ppm
+      - uses: actions/upload-artifact@v4
         with:
           name: asterion-assembly-linux-x64
           path: dist/asterion-assembly-linux-x64.zip
@@ -64,3 +71,20 @@ jobs:
         with:
           name: asterion-assembly-windows-x64
           path: dist/asterion-assembly-windows-x64.zip
+
+  compare-native-state:
+    needs: [test-linux, build-windows]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: '*-smoke-evidence'
+          path: evidence
+      - name: Compare Linux and Windows simulation hashes
+        shell: bash
+        run: |
+          LinuxHash="$(sed -n 's/^CIRCUIT SMOKE OK: .*state \([0-9A-F]*\).*$/\1/p' evidence/linux-smoke-evidence/AsterionAssembly-linux-x64/headless.log)"
+          WindowsHash="$(sed -n 's/^CIRCUIT SMOKE OK: .*state \([0-9A-F]*\).*$/\1/p' evidence/windows-smoke-evidence/AsterionAssembly-windows-x64/headless.log)"
+          test -n "$LinuxHash"
+          test "$LinuxHash" = "$WindowsHash"
+          echo "Native deterministic state: $LinuxHash"

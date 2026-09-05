@@ -1494,6 +1494,10 @@
                  (let ((*print-pretty* nil) (*print-readably* t))
                    ;; IDs de edição dos fios não são estado elétrico da malha.
                    (setf (getf dados :circuit-wires) (sort fios #'string< :key #'prin1-to-string))
+                   ;; A pasta de gravação é metadado local: mover uma instalação
+                   ;; entre Linux/Windows não altera o estado da fábrica.
+                   (setf (getf dados :game-data)
+                         (remove :save-dir (getf dados :game-data) :key #'car))
                    (prin1 dados s)))))
     (loop for c across texto do
       (setf hash (logand #xffffffffffffffff
