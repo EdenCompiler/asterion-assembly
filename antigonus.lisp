@@ -1820,6 +1820,32 @@ Escalas de 75 a 100% preservam a área útil mínima de 1280×720 da interface."
               ((sdl2:scancode= codigo :scancode-f2) (set-time-scale 2))
               ((sdl2:scancode= codigo :scancode-f3) (set-time-scale 4)))))
         (enviar-entrada :key-up codigo))))
+(defun nome-driver-renderizacao (info)
+  ;; SDL_RendererInfo começa com const char *name em todas as ABIs SDL2.
+  (cffi:foreign-string-to-lisp (cffi:mem-ref (autowrap:ptr info) :pointer)))
+(defun indice-driver-opengl ()
+  "Seleciona um índice explícito: hints permitem fallback silencioso da SDL."
+  (or (loop for i below (sdl2:get-num-render-drivers)
+            for info = (sdl2:get-render-driver-info i)
+            when (unwind-protect (string= "opengl" (nome-driver-renderizacao info))
+                   (sdl2::free-render-info info)) return i)
+      (error "OpenGL 3.3 é obrigatório / OpenGL 3.3 is required.")))
+(defun verificar-renderizador-opengl (renderer)
+  (let ((info (sdl2:get-renderer-info renderer)))
+    (unwind-protect
+         (unless (string= "opengl" (nome-driver-renderizacao info))
+           (error "Backend gráfico incompatível / Incompatible rendering backend."))
+      (sdl2::free-render-info info)))
+  (let* ((funcao (sdl2:gl-get-proc-address "glGetString"))
+         (versao (unless (cffi:null-pointer-p funcao)
+                   (cffi:foreign-funcall-pointer funcao () :uint #x1f02 :string))))
+    (unless versao (error "Contexto OpenGL indisponível / OpenGL context unavailable."))
+    (let* ((ponto (position #\. versao))
+           (maior (and ponto (parse-integer versao :end ponto :junk-allowed t)))
+           (menor (and ponto (parse-integer versao :start (1+ ponto) :junk-allowed t))))
+      (unless (and maior menor (or (> maior 3) (and (= maior 3) (>= menor 3))))
+        (error "OpenGL 3.3 é obrigatório / required; encontrado / found: ~A" versao)))
+    (engine-log :info "Renderer: opengl; OpenGL: ~A; batching SDL ativo" versao)))
 (defun executar-sdl ()
   (sdl2:with-init (:video :audio :gamecontroller)
     ;; A versão 2.0 fixa o backend SDL no driver OpenGL e habilita o lote
@@ -1832,9 +1858,9 @@ Escalas de 75 a 100% preservam a área útil mínima de 1280×720 da interface."
     (sdl2:with-window (janela :title (game-config-title antigonus::*configuracao-atual*)
                               :w antigonus::*largura-tela* :h antigonus::*altura-tela*
                               :flags '(:shown :resizable :opengl))
-      (sdl2:with-renderer (renderer janela :flags '(:accelerated :presentvsync))
-        (engine-log :info "Backend gráfico fixado em OpenGL 3.3, batching SDL ativo: ~A"
-                    (sdl2:get-renderer-info renderer))
+      (sdl2:with-renderer (renderer janela :index (indice-driver-opengl)
+                                         :flags '(:accelerated :presentvsync))
+        (verificar-renderizador-opengl renderer)
         ;; Mantém uma área lógica estável ao redimensionar. A SDL escala e
         ;; letterboxa o quadro completo, evitando HUD recortado e coordenadas
         ;; de mouse divergentes em janelas com outra proporção.
