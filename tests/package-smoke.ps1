@@ -8,12 +8,27 @@ try {
     $env:SDL_AUDIODRIVER = 'dummy'
     foreach ($Mode in @('--headless-smoke', '--render-smoke')) {
         $Log = if ($Mode -eq '--headless-smoke') { 'headless.log' } else { 'render.log' }
-        $Process = Start-Process '.\asterion-assembly.exe' -ArgumentList $Mode -PassThru `
-            -RedirectStandardOutput $Log -RedirectStandardError "$Log.err"
-        if (!$Process.WaitForExit(60000)) { $Process.Kill(); throw "Smoke timeout: $Mode" }
-        $Process.Refresh()
-        if ($Process.ExitCode -ne 0) { throw "Smoke exit code: $($Process.ExitCode)" }
-        $Text = (Get-Content $Log -Raw) + (Get-Content "$Log.err" -Raw)
+        # Possui o handle desde Start: Start-Process/PassThru pode devolver
+        # ExitCode nulo no PowerShell 5 mesmo após WaitForExit.
+        $Process = [System.Diagnostics.Process]::new()
+        $Process.StartInfo.FileName = Join-Path (Get-Location) 'asterion-assembly.exe'
+        $Process.StartInfo.Arguments = $Mode
+        $Process.StartInfo.UseShellExecute = $false
+        $Process.StartInfo.CreateNoWindow = $true
+        $Process.StartInfo.RedirectStandardOutput = $true
+        $Process.StartInfo.RedirectStandardError = $true
+        try {
+            if (!$Process.Start()) { throw "Smoke could not start: $Mode" }
+            $OutputTask = $Process.StandardOutput.ReadToEndAsync()
+            $ErrorTask = $Process.StandardError.ReadToEndAsync()
+            if (!$Process.WaitForExit(60000)) { $Process.Kill(); throw "Smoke timeout: $Mode" }
+            $OutputText = $OutputTask.GetAwaiter().GetResult()
+            $ErrorText = $ErrorTask.GetAwaiter().GetResult()
+            [System.IO.File]::WriteAllText((Join-Path (Get-Location) $Log), $OutputText)
+            [System.IO.File]::WriteAllText((Join-Path (Get-Location) "$Log.err"), $ErrorText)
+            if ($Process.ExitCode -ne 0) { throw "Smoke exit code $($Process.ExitCode): $ErrorText" }
+            $Text = $OutputText + $ErrorText
+        } finally { $Process.Dispose() }
         if ($Text -notmatch 'CIRCUIT SMOKE OK' -or $Text -match 'unhandled|fatal|backtrace|ANTIGONUS ERROR|encerrou com erro') {
             throw "Smoke log failure: $Text"
         }

@@ -2,6 +2,11 @@
 
 ## 3.0.0-dev — 2026-09-05
 
+- Controles persistentes de bomba/divisor/lâmpada/alarme e decisor no painel.
+- Perfis seguros, resolução/fullscreen, UI 75–100% e áudio por grupos.
+- Alarmes sintetizados originais; catálogo de sinais inclui conteúdo de mods.
+- Testes de mouse em fullscreen e gamepad virtual pela SDL com hotplug.
+- Primeira hora humana, remapeamento e seletor de saves ainda pendentes.
 - Added physical red/green circuits, typed signals, separate combinator ports,
   dirty-only graph rebuilds, a port index and delayed per-device memory.
 - Added stable worker buffers, canonical topology hashes and safe schema-3 saves.
@@ -59,10 +64,3 @@
 - Visible item flow on belts, inserters and machine ports.
 - Factorio/Mindustry-inspired build catalog, quickbar, minimap and network panel.
 - Repeatable graphical playtest on an isolated X virtual display.
-# Continuação 3.0 — controles e configurações
-
-- Controles persistentes de bomba/divisor/lâmpada/alarme e decisor no painel.
-- Perfis seguros, resolução/fullscreen, UI 75–100% e áudio por grupos.
-- Alarmes sintetizados originais; catálogo de sinais inclui conteúdo de mods.
-- Testes de mouse em fullscreen e gamepad virtual pela SDL com hotplug.
-- CI Windows ampliada; primeira hora humana/remapeamento/save picker ainda pendentes.

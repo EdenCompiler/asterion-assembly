@@ -63,7 +63,7 @@ direita alterna paleta. Analógico esquerdo move o personagem.
 - Gamepad virtual conectado pela SDL: botões, fio, abas, cor/brilho da lâmpada,
   eixo do cursor e desconexão com eixos zerados. Não apenas chamadas à API de entrada.
 - Benchmark isolado: 5.000 dispositivos, 10.000 fios, 1.000 combinadores;
-  aproximadamente 11 ms/tick neste computador. Não equivale ao desempenho do
+  13,07 ms/tick (76,5 UPS) neste computador após os novos controles. Não equivale ao desempenho do
   jogo inteiro nem ao teste de megabase com renderização.
 - Smoke do ZIP Linux executado localmente. A CI Windows foi preparada, mas não
   há resultado nativo Windows/Wine validado nesta sessão.
