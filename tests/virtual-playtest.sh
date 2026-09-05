@@ -6,6 +6,7 @@ saida="$raiz/build/playtest"
 mkdir -p "$saida"
 find "$saida" -maxdepth 1 -type f -delete
 export SDL_AUDIODRIVER=dummy
+export ASTERION_SAVE_DIR="$saida/saves/"
 
 cd "$raiz"
 sbcl --script tests/playtest-scene.lisp >"$saida/game.log" 2>&1 &

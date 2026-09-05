@@ -19,14 +19,20 @@
 
 (defun asterion-entrypoint ()
   (handler-case
-      (let* ((args (uiop:command-line-arguments))
+      (let* ((asterion-assembly::*raiz*
+               (uiop:ensure-directory-pathname (uiop:getcwd)))
+             (args (uiop:command-line-arguments))
              (pt (member "--pt" args :test #'string=))
              (seguro (member "--safe-mode" args :test #'string=)))
-        (asterion-assembly:start :language (if pt :pt :en) :safe-mode seguro)
-        0)
+        (cond ((member "--headless-smoke" args :test #'string=)
+               (asterion-assembly:run-smoke))
+              ((member "--render-smoke" args :test #'string=)
+               (asterion-assembly:run-smoke :render t))
+              (t (asterion-assembly:start :language (if pt :pt :en) :safe-mode seguro)))
+        (uiop:quit 0))
     (error (e)
       (format *error-output* "Asterion Assembly encerrou com erro: ~A~%" e)
-      1)))
+      (uiop:quit 1))))
 
 (let ((saida (or (uiop:getenv "ASTERION_OUTPUT") "dist/asterion-assembly")))
   (ensure-directories-exist saida)

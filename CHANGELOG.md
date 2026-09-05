@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.0.0-dev — 2026-09-05
+
+- Added physical red/green circuits, typed signals, separate combinator ports,
+  dirty-only graph rebuilds, a port index and delayed per-device memory.
+- Added stable worker buffers, canonical topology hashes and safe schema-3 saves.
+- Added wire mode, magnetic ports, mouse click/drag/cut, controller commands,
+  static circuit sprites, lamp/alarm states and amber/blue accessibility colors.
+- First six chapter gates now require sustained behavior, with hints, material
+  kits and early unlocks. Tutorial attacks are deferred until the final challenge.
+- Pumps separate networks and conserve persistent local volume. Circuit filters
+  control splitters/inserters; inserters no longer discard stacked belt items.
+- Old saves/mods are rejected without changing their files. New saves live in
+  `saves/v3/`; autosave rotation no longer depends on tick divisibility.
+- Added executable headless/render smoke modes and actual framebuffer PPM readback.
+- This milestone is in progress, not a public-demo acceptance. See `docs/UPGRADE-3.md`.
+
 ## 2.0.0-dev — 2026-09-04
 
 - Added deterministic 32×32 chunks, compact resource stores and schema-2 migration.
@@ -43,3 +59,10 @@
 - Visible item flow on belts, inserters and machine ports.
 - Factorio/Mindustry-inspired build catalog, quickbar, minimap and network panel.
 - Repeatable graphical playtest on an isolated X virtual display.
+# Continuação 3.0 — controles e configurações
+
+- Controles persistentes de bomba/divisor/lâmpada/alarme e decisor no painel.
+- Perfis seguros, resolução/fullscreen, UI 75–100% e áudio por grupos.
+- Alarmes sintetizados originais; catálogo de sinais inclui conteúdo de mods.
+- Testes de mouse em fullscreen e gamepad virtual pela SDL com hotplug.
+- CI Windows ampliada; primeira hora humana/remapeamento/save picker ainda pendentes.

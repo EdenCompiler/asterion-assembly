@@ -14,7 +14,7 @@ Copy-Item "$Dist\asterion-assembly.exe" $Package
 Copy-Item "$Root\LICENSE", "$Root\THIRD_PARTY.md", "$Root\README.md" $Package
 Copy-Item -Recurse "$Root\assets" $Package
 Copy-Item -Recurse "$Root\mods\example-more-belts" "$Package\mods"
-Copy-Item "$Root\docs\MANUAL.md", "$Root\docs\MODDING.md" "$Package\docs"
+Copy-Item "$Root\docs\MANUAL.md", "$Root\docs\MODDING.md", "$Root\docs\API.md", "$Root\docs\UPGRADE-3.md" "$Package\docs"
 if ($env:SDL_BIN) { Copy-Item "$env:SDL_BIN\*.dll" $Package }
 Compress-Archive -Force -Path $Package -DestinationPath "$Root\dist\asterion-assembly-windows-x64.zip"
 Write-Host "Criado: $Root\dist\asterion-assembly-windows-x64.zip"

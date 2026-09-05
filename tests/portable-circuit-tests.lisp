@@ -1,0 +1,10 @@
+;;;; Subconjunto portátil para CI nativa: não substitui a jornada humana.
+(load (merge-pathnames "quicklisp/setup.lisp" (user-homedir-pathname)))
+(pushnew (uiop:getcwd) asdf:*central-registry* :test #'equal)
+(ql:quickload :asterion-assembly/tests :silent t)
+(setf asterion-tests::*executados* 0)
+(asterion-tests::teste-tutorial-circuitos)
+(asterion-tests::teste-gamepad-circuitos)
+(asterion-tests::teste-atuadores-avancados)
+(asterion-tests::teste-configuracoes-persistentes)
+(format t "~&PORTABLE CIRCUIT TESTS OK: ~D~%" asterion-tests::*executados*)

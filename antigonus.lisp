@@ -1,4 +1,4 @@
-;;;; Antigonus 2.0.0 — engine 2D para jogos de automação.
+;;;; Antigonus 3.0.0 — engine 2D para jogos de automação.
 ;;;; O núcleo inteiro da engine vive neste arquivo. A API pública é em inglês;
 ;;;; implementação, comentários e diagnósticos são mantidos em português.
 
@@ -17,6 +17,7 @@
    #:item-definition #:recipe-definition #:building-definition
    #:technology-definition #:mod-manifest #:building #:entity #:train
    #:chunk #:belt-lane #:belt-network #:fluid-network #:power-network
+   #:circuit-port #:circuit-wire #:circuit-condition #:circuit-device-config
    #:circuit-network #:rail-node #:rail-edge #:rail-graph #:train-schedule
    #:train-schedule-stop #:blueprint-definition #:blueprint-entry
    #:simulation-command
@@ -25,7 +26,8 @@
    #:world-building-count
    #:world-pollution #:world-research #:world-campaign #:world-difficulty
    #:world-game-data #:world-chunks #:world-belt-networks #:world-fluid-networks
-   #:world-power-networks #:world-circuit-networks #:world-rail-graph
+   #:world-power-networks #:world-circuit-networks #:world-circuit-wires
+   #:world-circuit-graph-dirty #:world-rail-graph #:world-worker-count
    #:world-blueprints #:world-ghosts #:reset-engine #:define-system #:defsystem
    #:remove-system #:run-deterministic-jobs #:enqueue-simulation-command
    #:simulation-state-hash
@@ -52,13 +54,14 @@
    #:building-definition-color #:building-definition-size
    #:building-definition-footprint #:building-definition-ports
    #:building-definition-render-layers #:building-definition-circuit-connectors
+   #:building-definition-circuit-ports #:building-definition-circuit-behavior
    #:building-definition-tags
    #:technology-definition-id #:technology-definition-cost
    #:technology-definition-name #:technology-definition-unlocks
    #:technology-definition-prerequisites #:technology-definition-branch
    #:simulate-tick #:on-event #:emit-event
    #:save-game #:load-game #:autosave-game #:discover-mods #:load-mods
-   #:mod-fingerprint #:mod-manifest-id #:mod-manifest-version
+   #:mod-fingerprint #:mod-errors #:loaded-mods #:mod-manifest-id #:mod-manifest-version
    #:mod-manifest-name #:mod-manifest-dependencies #:mod-manifest-enabled
    #:set-language #:translate #:register-translations #:deftranslations #:current-language
    #:draw-rect #:draw-line #:draw-text #:draw-circle #:screen-width
@@ -66,7 +69,8 @@
    #:register-animation #:defanimation #:find-animation #:animation-frame
    #:draw-animation #:engine-time #:unload-sprites
    #:screen-height #:set-clear-color #:set-camera #:camera-position
-   #:register-sound #:play-sound #:set-audio-volume
+   #:register-sound #:play-sound #:set-audio-volume #:set-audio-bus-volume #:audio-bus-volume
+   #:set-display-mode
    #:screen-to-world #:world-to-screen #:mouse-position #:input-down-p
    #:set-time-scale #:time-scale #:paused-p #:toggle-pause #:engine-log
    #:profile-snapshot #:resource-noise #:find-path #:rail-route
@@ -77,6 +81,8 @@
    #:belt-lane-positions #:belt-lane-stacks #:make-belt-lane
    #:belt-lane-insert #:belt-lane-remove-front #:advance-belt-lane
    #:make-fluid-network #:make-power-network #:make-circuit-network
+   #:make-circuit-port #:make-circuit-wire #:make-circuit-condition
+   #:make-circuit-device-config
    #:ensure-fluid-network #:ensure-power-network #:ensure-circuit-network
    #:simulate-fluid-network #:allocate-power-network
    #:fluid-network-id #:fluid-network-fluid #:fluid-network-volume
@@ -84,8 +90,24 @@
    #:power-network-id #:power-network-generation #:power-network-demand
    #:power-network-stored #:power-network-capacity #:power-network-nodes
    #:power-network-satisfaction #:circuit-network-id #:circuit-network-signals
-   #:circuit-network-nodes #:circuit-network-revision
+   #:circuit-network-next-signals #:circuit-network-color
+   #:circuit-network-nodes #:circuit-network-wires #:circuit-network-revision
    #:circuit-write #:circuit-read #:clear-circuit-network
+   #:circuit-port-building-id #:circuit-port-id #:circuit-port-directions
+   #:circuit-wire-id #:circuit-wire-color #:circuit-wire-a-building
+   #:circuit-wire-a-port #:circuit-wire-b-building #:circuit-wire-b-port
+   #:circuit-condition-left #:circuit-condition-comparator
+   #:circuit-condition-right #:circuit-condition-constant
+   #:circuit-device-config-behavior #:circuit-device-config-input-signal
+   #:circuit-device-config-output-signal #:circuit-device-config-operator
+   #:circuit-device-config-constant #:circuit-device-config-condition
+   #:circuit-device-config-copy-count
+   #:circuit-device-config-pump-direction #:circuit-device-config-output-priority
+   #:circuit-device-config-lamp-color #:circuit-device-config-lamp-intensity
+   #:circuit-device-config-alarm-sound #:circuit-device-config-alarm-message
+   #:connect-circuit #:disconnect-circuit #:circuit-connections
+   #:configure-circuit-device #:read-circuit-signal
+   #:rebuild-circuit-networks #:circuit-network-for-port
    #:rail-node-id #:rail-node-x #:rail-node-y #:rail-edge-id
    #:rail-edge-from #:rail-edge-to #:rail-edge-length #:rail-edge-block
    #:rail-edge-one-way #:rail-graph-nodes #:rail-graph-edges
@@ -97,7 +119,7 @@
    #:blueprint-definition-id #:blueprint-definition-name
    #:blueprint-definition-entries #:blueprint-entry-kind #:blueprint-entry-x
    #:blueprint-entry-y #:blueprint-entry-rotation #:blueprint-entry-settings
-   #:capture-blueprint #:apply-blueprint
+   #:capture-blueprint #:apply-blueprint #:capture-renderer
    #:game-config-title #:game-config-width #:game-config-height
    #:game-config-start #:game-config-update #:game-config-render
    #:game-config-input #:game-config-shutdown))
@@ -107,8 +129,8 @@
 
 (in-package #:antigonus)
 
-(defparameter +engine-version+ "2.0.0")
-(defconstant +save-version+ 2)
+(defparameter +engine-version+ "3.0.0")
+(defconstant +save-version+ 3)
 (defconstant +chunk-size+ 32)
 (deftype entity-id () '(integer 1 *))
 
@@ -118,7 +140,8 @@
            (fluid-inputs nil) (fluid-outputs nil) (catalysts nil) (byproducts nil))
 (defstruct building-definition id name category (cost nil) (power 0) color
            (size 1) recipe-category description (footprint '(1 . 1)) (ports nil)
-           (render-layers nil) (circuit-connectors nil) (tags nil))
+           (render-layers nil) (circuit-connectors nil) (circuit-ports nil)
+           circuit-behavior (tags nil))
 (defstruct technology-definition id name (cost nil) (unlocks nil) prerequisites
            description (branch :main))
 (defstruct mod-manifest id name version engine-version dependencies conflicts
@@ -155,8 +178,21 @@
            (nodes nil) (revision 0))
 (defstruct power-network id (generation 0.0) (demand 0.0) (stored 0.0)
            (capacity 0.0) (nodes nil) (satisfaction 1.0) (revision 0))
-(defstruct circuit-network id (signals (make-hash-table :test #'equal))
-           (nodes nil) (revision 0))
+(defstruct circuit-port building-id (id :main) (directions '(:input :output)))
+(defstruct circuit-wire id (color :red) a-building (a-port :main)
+           b-building (b-port :main))
+(defstruct circuit-condition (left '(:virtual :signal-a)) (comparator :>)
+           right (constant 0))
+(defstruct circuit-device-config (behavior :sensor)
+           (input-signal '(:virtual :signal-a))
+           (output-signal '(:virtual :signal-a)) (operator :+) (constant 0)
+           condition (copy-count nil) (pump-direction :forward)
+           (output-priority :balanced) (lamp-color :amber) (lamp-intensity 100)
+           (alarm-sound :warning) (alarm-message :circuit-alert))
+(defstruct circuit-network id (color :red)
+           (signals (make-hash-table :test #'equal))
+           (next-signals (make-hash-table :test #'equal))
+           (nodes nil) (wires nil) (revision 0))
 (defstruct rail-node id x y (connections nil) station)
 (defstruct rail-edge id from to (length 1.0) (block 0) (one-way nil)
            (geometry :straight) (speed-limit 1.0))
@@ -180,6 +216,8 @@
            (chunks (make-hash-table :test #'equal))
            (belt-networks (make-hash-table)) (fluid-networks (make-hash-table))
            (power-networks (make-hash-table)) (circuit-networks (make-hash-table))
+           (circuit-wires (make-hash-table)) (next-circuit-wire-id 1)
+           (circuit-graph-dirty t) (indice-portas-circuito (make-hash-table :test #'equal))
            (rail-graph (make-rail-graph))
            (blueprints (make-hash-table :test #'equal)) (ghosts nil)
            (worker-count 1))
@@ -199,6 +237,9 @@
 (defvar *traducoes* (make-hash-table :test #'equal))
 (defvar *idioma* :en)
 (defvar *mods-carregados* nil)
+(defvar *erros-mods* nil)
+(defun mod-errors () (copy-tree *erros-mods*))
+(defun loaded-mods () (copy-list *mods-carregados*))
 (defvar *mundo-atual* nil)
 (defvar *configuracao-atual* nil)
 (defvar *executando* nil)
@@ -217,6 +258,10 @@
 (defvar *sons* (make-hash-table :test #'equal))
 (defvar *audio-pronto* nil)
 (defvar *volume-audio* 96)
+(defvar *volumes-grupos-audio* (make-hash-table :test #'eq))
+(defvar *grupos-canais-audio* (make-array 16 :initial-element :effects))
+(defvar *janela-atual* nil)
+(defvar *modo-video* nil)
 (defvar *folhas-sprites* (make-hash-table :test #'equal))
 (defvar *animacoes* (make-hash-table :test #'equal))
 (defvar *tempo-visual* 0.0)
@@ -355,12 +400,27 @@
   (setf *sistemas* nil *mods-carregados* nil *pausado* nil *escala-tempo* 1)
   t)
 
-(defun register-sound (id path)
+(defun register-sound (id path &key (bus :effects))
   "Registra o caminho de um WAV. O carregamento é preguiçoso após abrir o áudio."
-  (setf (gethash id *sons*) (list :path (namestring path) :chunk nil)) id)
+  (unless (member bus '(:effects :alerts :ambient :music)) (error "Grupo de áudio inválido."))
+  (setf (gethash id *sons*) (list :path (namestring path) :chunk nil :bus bus)) id)
+(defun audio-bus-volume (bus)
+  (gethash bus *volumes-grupos-audio* 128))
+(defun volume-efetivo-canal (bus)
+  (round (* *volume-audio* (audio-bus-volume bus)) 128))
+(defun atualizar-volumes-canais ()
+  (when *audio-pronto*
+    (loop for bus across *grupos-canais-audio* for canal from 0
+          do (sdl2-mixer:volume canal (volume-efetivo-canal bus)))))
+(defun set-audio-bus-volume (bus volume)
+  "Ajusta um grupo entre 0 e 128, multiplicado pelo volume mestre."
+  (unless (and (member bus '(:effects :alerts :ambient :music)) (typep volume '(integer 0 128)))
+    (error "Grupo ou volume de áudio inválido."))
+  (setf (gethash bus *volumes-grupos-audio*) volume)
+  (atualizar-volumes-canais) volume)
 (defun set-audio-volume (volume)
   (setf *volume-audio* (max 0 (min 128 volume)))
-  (when *audio-pronto* (sdl2-mixer:volume -1 *volume-audio*)) *volume-audio*)
+  (atualizar-volumes-canais) *volume-audio*)
 (defun play-sound (id &key (loops 0))
   (when *audio-pronto*
     (let ((som (gethash id *sons*)))
@@ -369,7 +429,11 @@
             (progn
               (unless (getf som :chunk)
                 (setf (getf som :chunk) (sdl2-mixer:load-wav (getf som :path))))
-              (sdl2-mixer:play-channel -1 (getf som :chunk) loops))
+              (let ((canal (loop for i below 16 when (zerop (sdl2-mixer:playing i)) return i)))
+                (when canal
+                  (setf (aref *grupos-canais-audio* canal) (getf som :bus :effects))
+                  (sdl2-mixer:volume canal (volume-efetivo-canal (aref *grupos-canais-audio* canal)))
+                  (sdl2-mixer:play-channel canal (getf som :chunk) loops))))
           (error (e) (engine-log :warning "Som ~A indisponível: ~A" id e)))))))
 
 (defun register-sprite-sheet (id path columns rows)
@@ -430,14 +494,17 @@
 
 (defun register-building (id &key name category cost (power 0) color (size 1)
                                   recipe-category description footprint ports
-                                  render-layers circuit-connectors tags)
+                                  render-layers circuit-connectors circuit-ports
+                                  circuit-behavior tags)
   (setf (gethash id *construcoes*)
         (make-building-definition :id id :name (or name (string id)) :category category
                                   :cost cost :power power :color color :size size
                                   :recipe-category recipe-category :description description
                                   :footprint (or footprint (cons size size)) :ports ports
                                   :render-layers render-layers
-                                  :circuit-connectors circuit-connectors :tags tags)))
+                                  :circuit-connectors circuit-connectors
+                                  :circuit-ports circuit-ports
+                                  :circuit-behavior circuit-behavior :tags tags)))
 (defun find-building (id) (gethash id *construcoes*))
 (defun map-building-definitions (funcao)
   (maphash (lambda (k v) (declare (ignore k)) (funcall funcao v)) *construcoes*))
@@ -583,7 +650,14 @@
   "API pública para distribuição determinística de energia."
   (distribuir-energia rede loads))
 
+(defun sinal-circuito-valido-p (sinal)
+  (and (consp sinal) (member (first sinal) '(:item :fluid :virtual))
+       (consp (cdr sinal)) (null (cddr sinal))
+       (or (keywordp (second sinal)) (stringp (second sinal)))))
+
 (defun circuit-write (rede signal value &key (mode :set))
+  (unless (and (sinal-circuito-valido-p signal) (integerp value))
+    (error "Circuito requer sinal tipado e valor inteiro: ~S = ~S" signal value))
   (ecase mode
     (:set (setf (gethash signal (circuit-network-signals rede)) value))
     (:add (incf (gethash signal (circuit-network-signals rede) 0) value))
@@ -598,6 +672,202 @@
 (defun clear-circuit-network (rede)
   (clrhash (circuit-network-signals rede))
   (incf (circuit-network-revision rede)) rede)
+
+;;; Grafos de circuitos 3.0. Redes vermelhas e verdes jamais se fundem.
+(defun id-predio-circuito (predio-ou-id)
+  (if (building-p predio-ou-id) (building-id predio-ou-id) predio-ou-id))
+
+(defun chave-porta-circuito (predio porta)
+  (list predio porta))
+
+(defun texto-porta-circuito (porta)
+  (format nil "~10,'0D/~A" (first porta) (second porta)))
+
+(defun porta-circuito< (a b)
+  (string< (texto-porta-circuito a) (texto-porta-circuito b)))
+
+(defun hash-circuito-estavel (cor portas)
+  "Produz ID FNV-1a estável entre plataformas a partir do componente ordenado."
+  (let ((hash #xcbf29ce484222325)
+        (texto (format nil "~A|~{~A~^|~}" cor
+                       (mapcar #'texto-porta-circuito portas))))
+    (loop for caractere across texto do
+      (setf hash (logand #xffffffffffffffff
+                         (* (logxor hash (char-code caractere)) #x100000001b3))))
+    hash))
+
+(defun portas-definidas-circuito (predio)
+  (let* ((definicao (find-building (building-kind predio)))
+         (portas (and definicao (building-definition-circuit-ports definicao))))
+    (or portas (when (and definicao
+                          (building-definition-circuit-connectors definicao))
+                 '(:main)))))
+
+(defun porta-circuito-valida-p (predio porta)
+  (member porta (portas-definidas-circuito predio) :test #'equal))
+
+(defun fio-equivalente-p (fio cor a porta-a b porta-b)
+  (and (eq cor (circuit-wire-color fio))
+       (or (and (= a (circuit-wire-a-building fio))
+                (= b (circuit-wire-b-building fio))
+                (equal porta-a (circuit-wire-a-port fio))
+                (equal porta-b (circuit-wire-b-port fio)))
+           (and (= b (circuit-wire-a-building fio))
+                (= a (circuit-wire-b-building fio))
+                (equal porta-b (circuit-wire-a-port fio))
+                (equal porta-a (circuit-wire-b-port fio))))))
+
+(defun connect-circuit (mundo predio-a predio-b
+                        &key (port-a :main) (port-b :main) (color :red))
+  "Conecta duas portas a até nove tiles; retorna fio e se a conexão foi criada."
+  (unless (member color '(:red :green))
+    (error "Cor de circuito inválida: ~A" color))
+  (let* ((a-id (id-predio-circuito predio-a)) (b-id (id-predio-circuito predio-b))
+         (a (gethash a-id (world-buildings mundo)))
+         (b (gethash b-id (world-buildings mundo))))
+    (unless (and a b) (error "Conexão referencia construção ausente."))
+    (unless (and (porta-circuito-valida-p a port-a)
+                 (porta-circuito-valida-p b port-b))
+      (error "Porta de circuito inválida em ~A ou ~A." a-id b-id))
+    (when (and (= a-id b-id) (equal port-a port-b))
+      (error "Uma porta não pode conectar a si mesma."))
+    (let ((distancia (sqrt (+ (expt (- (building-x a) (building-x b)) 2)
+                              (expt (- (building-y a) (building-y b)) 2)))))
+      (when (> distancia 9.0) (error "Conexão excede o alcance de nove tiles.")))
+    (let ((existente nil))
+      (maphash (lambda (id fio) (declare (ignore id))
+                 (when (fio-equivalente-p fio color a-id port-a b-id port-b)
+                   (setf existente fio)))
+               (world-circuit-wires mundo))
+      (if existente (values existente nil)
+          (let* ((id (prog1 (world-next-circuit-wire-id mundo)
+                       (incf (world-next-circuit-wire-id mundo))))
+                 (fio (make-circuit-wire :id id :color color
+                                         :a-building a-id :a-port port-a
+                                         :b-building b-id :b-port port-b)))
+            (setf (gethash id (world-circuit-wires mundo)) fio
+                  (world-circuit-graph-dirty mundo) t)
+            (values fio t))))))
+
+(defun disconnect-circuit (mundo fio-ou-id)
+  "Remove uma conexão e retorna o fio removido para o chamador reembolsar."
+  (let* ((id (if (circuit-wire-p fio-ou-id) (circuit-wire-id fio-ou-id) fio-ou-id))
+         (fio (gethash id (world-circuit-wires mundo))))
+    (when fio
+      (remhash id (world-circuit-wires mundo))
+      (setf (world-circuit-graph-dirty mundo) t)
+      fio)))
+
+(defun circuit-connections (mundo &optional predio-ou-id color)
+  "Lista conexões em ordem de ID, opcionalmente filtradas por prédio e cor."
+  (let ((predio (and predio-ou-id (id-predio-circuito predio-ou-id))) resultado)
+    (maphash (lambda (id fio) (declare (ignore id))
+               (when (and (or (null predio)
+                              (= predio (circuit-wire-a-building fio))
+                              (= predio (circuit-wire-b-building fio)))
+                          (or (null color) (eq color (circuit-wire-color fio))))
+                 (push fio resultado)))
+             (world-circuit-wires mundo))
+    (sort resultado #'< :key #'circuit-wire-id)))
+
+(defun configure-circuit-device (predio configuracao)
+  "Associa uma configuração pública a uma construção compatível."
+  (unless (circuit-device-config-p configuracao)
+    (error "Configuração de circuito inválida: ~A" configuracao))
+  (unless (and (portas-definidas-circuito predio)
+               (integerp (circuit-device-config-constant configuracao))
+               (member (circuit-device-config-operator configuracao) '(:+ :- :* :/ :mod :min :max)))
+    (error "Dispositivo, operador ou constante de circuito inválidos."))
+  (unless (and (member (circuit-device-config-pump-direction configuracao) '(:forward :reverse))
+               (member (circuit-device-config-output-priority configuracao) '(:balanced :first :second))
+               (member (circuit-device-config-lamp-color configuracao) '(:amber :blue :red :green))
+               (typep (circuit-device-config-lamp-intensity configuracao) '(integer 0 100))
+               (member (circuit-device-config-alarm-sound configuracao) '(:silent :warning :critical))
+               (member (circuit-device-config-alarm-message configuracao)
+                       '(:circuit-alert :low-stock :tank-full :power-low))
+               (member (circuit-device-config-copy-count configuracao) '(nil t)))
+    (error "Parâmetros de atuador inválidos."))
+  (dolist (sinal (list (circuit-device-config-input-signal configuracao)
+                       (circuit-device-config-output-signal configuracao)))
+    (unless (or (null sinal) (sinal-circuito-valido-p sinal)
+                (member sinal '(:each :anything :everything)))
+      (error "Sinal de circuito inválido: ~S" sinal)))
+  (let ((condicao (circuit-device-config-condition configuracao)))
+    (when condicao
+      (unless (and (circuit-condition-p condicao)
+                   (integerp (circuit-condition-constant condicao))
+                   (member (circuit-condition-comparator condicao) '(:< :<= := :!= :>= :>))
+                   (or (sinal-circuito-valido-p (circuit-condition-left condicao))
+                       (member (circuit-condition-left condicao) '(:each :anything :everything)))
+                   (or (null (circuit-condition-right condicao))
+                       (sinal-circuito-valido-p (circuit-condition-right condicao))))
+        (error "Condição de circuito inválida."))))
+  ;; Configurações copiadas por plantas/UI não compartilham estruturas mutáveis.
+  (dolist (chave '(:circuit-true-tick :circuit-false-tick :filtered-output-0 :filtered-output-1))
+    (remf (building-state predio) chave))
+  (setf (getf (building-state predio) :circuit-config)
+        (dados-para-valor (valor-para-dados configuracao))))
+
+(defun read-circuit-signal (rede sinal &optional (padrao 0))
+  (circuit-read rede sinal padrao))
+
+(defun rebuild-circuit-networks (mundo)
+  "Reconstrói componentes por cor somente quando o grafo foi alterado."
+  (when (world-circuit-graph-dirty mundo)
+    (let ((antigas (world-circuit-networks mundo))
+          (novas (make-hash-table))
+          (indice (make-hash-table :test #'equal))
+          (fios (circuit-connections mundo)))
+      (dolist (cor '(:red :green))
+        (let ((adjacencias (make-hash-table :test #'equal))
+              (fios-cor (remove-if-not (lambda (fio) (eq cor (circuit-wire-color fio))) fios)))
+          (dolist (fio fios-cor)
+            (let ((a (chave-porta-circuito (circuit-wire-a-building fio)
+                                           (circuit-wire-a-port fio)))
+                  (b (chave-porta-circuito (circuit-wire-b-building fio)
+                                           (circuit-wire-b-port fio))))
+              (pushnew b (gethash a adjacencias) :test #'equal)
+              (pushnew a (gethash b adjacencias) :test #'equal)))
+          (let (todas (visitadas (make-hash-table :test #'equal)))
+            (maphash (lambda (porta vizinhos) (declare (ignore vizinhos)) (push porta todas))
+                     adjacencias)
+            (dolist (inicio (sort todas #'porta-circuito<))
+              (unless (gethash inicio visitadas)
+                (let ((fila (list inicio)) componente)
+                  (loop while fila do
+                    (let ((porta (pop fila)))
+                      (unless (gethash porta visitadas)
+                        (setf (gethash porta visitadas) t) (push porta componente)
+                        (dolist (vizinho (gethash porta adjacencias))
+                          (unless (gethash vizinho visitadas)
+                            (push vizinho fila))))))
+                  (setf componente (sort componente #'porta-circuito<))
+                  (let* ((id (hash-circuito-estavel cor componente))
+                         (anterior (gethash id antigas))
+                         (rede (or anterior (make-circuit-network :id id :color cor))))
+                    (setf (circuit-network-color rede) cor
+                          (circuit-network-nodes rede) componente
+                          (circuit-network-wires rede) nil)
+                    (when (gethash id novas)
+                      (error "Colisão de identificador de circuito: ~A" id))
+                    (dolist (porta componente)
+                      (setf (gethash (cons cor porta) indice) rede))
+                    (setf (gethash id novas) rede))))))
+          (dolist (fio fios-cor)
+            (let ((rede (gethash (list cor (circuit-wire-a-building fio)
+                                       (circuit-wire-a-port fio)) indice)))
+              (push (circuit-wire-id fio) (circuit-network-wires rede))))))
+      (setf (world-circuit-networks mundo) novas
+            (world-indice-portas-circuito mundo) indice
+            (world-circuit-graph-dirty mundo) nil)))
+  (world-circuit-networks mundo))
+
+(defun circuit-network-for-port (mundo predio-ou-id &optional (porta :main) color)
+  (rebuild-circuit-networks mundo)
+  (loop for cor in (if color (list color) '(:red :green))
+        for rede = (gethash (list cor (id-predio-circuito predio-ou-id) porta)
+                           (world-indice-portas-circuito mundo))
+        when rede collect rede))
 
 ;;; Grafo ferroviário e reservas de blocos.
 (defun add-rail-node (grafo x y &key station)
@@ -727,6 +997,8 @@
   (let ((predio (if (building-p predio-ou-id) predio-ou-id
                     (gethash predio-ou-id (world-buildings mundo)))))
     (when predio
+      (dolist (fio (circuit-connections mundo predio))
+        (disconnect-circuit mundo fio))
       (remhash (cons (building-x predio) (building-y predio)) (world-positions mundo))
       (remhash (building-id predio) (world-buildings mundo))
       (let ((chunk (find-chunk mundo (building-x predio) (building-y predio))))
@@ -917,6 +1189,27 @@
 ;;; Persistência: somente dados simples entram no arquivo; nenhuma forma é avaliada.
 (defun valor-para-dados (valor)
   (cond
+    ((circuit-condition-p valor)
+     (list :antigonus-circuit-condition
+           :left (circuit-condition-left valor)
+           :comparator (circuit-condition-comparator valor)
+           :right (circuit-condition-right valor)
+           :constant (circuit-condition-constant valor)))
+    ((circuit-device-config-p valor)
+     (list :antigonus-circuit-device-config
+           :behavior (circuit-device-config-behavior valor)
+           :input-signal (circuit-device-config-input-signal valor)
+           :output-signal (circuit-device-config-output-signal valor)
+           :operator (circuit-device-config-operator valor)
+           :constant (circuit-device-config-constant valor)
+           :condition (valor-para-dados (circuit-device-config-condition valor))
+           :copy-count (circuit-device-config-copy-count valor)
+           :pump-direction (circuit-device-config-pump-direction valor)
+           :output-priority (circuit-device-config-output-priority valor)
+           :lamp-color (circuit-device-config-lamp-color valor)
+           :lamp-intensity (circuit-device-config-lamp-intensity valor)
+           :alarm-sound (circuit-device-config-alarm-sound valor)
+           :alarm-message (circuit-device-config-alarm-message valor)))
     ((belt-lane-p valor)
      (list :antigonus-belt-lane
            :capacity (belt-lane-capacity valor) :count (belt-lane-count valor)
@@ -928,6 +1221,7 @@
                          collect (aref (belt-lane-stacks valor) i))))
     ((hash-table-p valor)
      (list :antigonus-hash-table (tabela-para-lista valor)))
+    ((stringp valor) valor)
     ((vectorp valor)
      (list :antigonus-vector
            (loop for elemento across valor collect (valor-para-dados elemento))))
@@ -937,6 +1231,26 @@
 
 (defun dados-para-valor (dados)
   (cond
+    ((and (consp dados) (eq (car dados) :antigonus-circuit-condition))
+     (make-circuit-condition :left (getf (cdr dados) :left)
+                             :comparator (getf (cdr dados) :comparator)
+                             :right (getf (cdr dados) :right)
+                             :constant (getf (cdr dados) :constant 0)))
+    ((and (consp dados) (eq (car dados) :antigonus-circuit-device-config))
+     (make-circuit-device-config
+      :behavior (getf (cdr dados) :behavior)
+      :input-signal (getf (cdr dados) :input-signal)
+      :output-signal (getf (cdr dados) :output-signal)
+      :operator (getf (cdr dados) :operator)
+      :constant (getf (cdr dados) :constant 0)
+      :condition (dados-para-valor (getf (cdr dados) :condition))
+      :copy-count (getf (cdr dados) :copy-count)
+      :pump-direction (getf (cdr dados) :pump-direction :forward)
+      :output-priority (getf (cdr dados) :output-priority :balanced)
+      :lamp-color (getf (cdr dados) :lamp-color :amber)
+      :lamp-intensity (getf (cdr dados) :lamp-intensity 100)
+      :alarm-sound (getf (cdr dados) :alarm-sound :warning)
+      :alarm-message (getf (cdr dados) :alarm-message :circuit-alert)))
     ((and (consp dados) (eq (car dados) :antigonus-belt-lane))
      (let* ((capacidade (getf (cdr dados) :capacity))
             (pista (make-belt-lane :capacity capacidade)))
@@ -986,19 +1300,41 @@
                 (blueprint-definition-entries planta))))
 
 (defun mundo-para-dados (mundo)
-  (let (predios entidades chunks plantas)
+  (rebuild-circuit-networks mundo)
+  (let (predios entidades chunks plantas fios memoria-circuitos)
     (map-buildings (lambda (b) (push (predio-para-dados b) predios)) mundo)
     (map-entities (lambda (e) (push (entidade-para-dados e) entidades)) mundo)
     (map-chunks (lambda (chunk) (push (chunk-para-dados chunk) chunks)) mundo)
     (maphash (lambda (id planta) (declare (ignore id))
                (push (blueprint-para-dados planta) plantas))
              (world-blueprints mundo))
+    (maphash (lambda (id fio) (declare (ignore id))
+               (push (list :id (circuit-wire-id fio) :color (circuit-wire-color fio)
+                           :a-building (circuit-wire-a-building fio)
+                           :a-port (circuit-wire-a-port fio)
+                           :b-building (circuit-wire-b-building fio)
+                           :b-port (circuit-wire-b-port fio)) fios))
+             (world-circuit-wires mundo))
+    (maphash (lambda (id rede)
+               (push (list :id id
+                           :signals (tabela-para-lista (circuit-network-signals rede))
+                           :next-signals (tabela-para-lista
+                                          (circuit-network-next-signals rede)))
+                     memoria-circuitos))
+             (world-circuit-networks mundo))
     (list :seed (world-seed mundo) :tick (world-tick mundo) :next-id (world-next-id mundo)
           :pollution (world-pollution mundo) :research (world-research mundo)
           :campaign (world-campaign mundo) :difficulty (world-difficulty mundo)
           :game-data (tabela-para-lista (world-game-data mundo))
-          :buildings predios :entities entidades :chunks chunks
-          :blueprints plantas :ghosts (valor-para-dados (world-ghosts mundo))
+          :buildings (sort predios #'< :key (lambda (p) (getf p :id)))
+          :entities (sort entidades #'< :key (lambda (p) (getf p :id)))
+          :chunks (sort chunks #'string< :key (lambda (p)
+                                               (format nil "~D/~D" (getf p :x) (getf p :y))))
+          :blueprints (sort plantas #'string< :key (lambda (p) (princ-to-string (getf p :id))))
+          :ghosts (valor-para-dados (world-ghosts mundo))
+          :circuit-wires (sort fios #'< :key (lambda (fio) (getf fio :id)))
+          :next-circuit-wire-id (world-next-circuit-wire-id mundo)
+          :circuit-memory (sort memoria-circuitos #'< :key (lambda (rede) (getf rede :id)))
           :mods (mod-fingerprint))))
 
 (defun restaurar-chunk (mundo dados)
@@ -1050,6 +1386,22 @@
     (dolist (dados-planta (getf d :blueprints))
       (let ((planta (restaurar-blueprint dados-planta)))
         (setf (gethash (blueprint-definition-id planta) (world-blueprints m)) planta)))
+    (dolist (fio (getf d :circuit-wires))
+      (let ((objeto (make-circuit-wire
+                     :id (getf fio :id) :color (getf fio :color)
+                     :a-building (getf fio :a-building) :a-port (getf fio :a-port)
+                     :b-building (getf fio :b-building) :b-port (getf fio :b-port))))
+        (setf (gethash (circuit-wire-id objeto) (world-circuit-wires m)) objeto)))
+    (setf (world-next-circuit-wire-id m) (getf d :next-circuit-wire-id 1)
+          (world-circuit-graph-dirty m) t)
+    (rebuild-circuit-networks m)
+    (dolist (memoria (getf d :circuit-memory))
+      (let ((rede (gethash (getf memoria :id) (world-circuit-networks m))))
+        (when rede
+          (setf (circuit-network-signals rede)
+                (lista-para-tabela (getf memoria :signals))
+                (circuit-network-next-signals rede)
+                (lista-para-tabela (getf memoria :next-signals))))))
     (setf (world-ghosts m) (dados-para-valor (getf d :ghosts)))
     m))
 
@@ -1085,39 +1437,64 @@
     mundo))
 (defun save-game (mundo caminho)
   (ensure-directories-exist caminho)
+  ;; Nem mesmo uma gravação explícita pode destruir um save de outra geração.
+  (when (probe-file caminho)
+    (with-open-file (s caminho)
+      (let* ((*read-eval* nil) (dados (read s nil nil)))
+        (unless (and (listp dados) (eql (getf dados :antigonus-save) +save-version+))
+          (error (if (eq (current-language) :pt)
+                     "SAVE INCOMPATIVEL: escolha outro arquivo. O original foi preservado."
+                     "INCOMPATIBLE SAVE: choose another file. The original was preserved."))))))
   (let ((temporario (format nil "~A.tmp" caminho)))
     (with-open-file (s temporario :direction :output :if-exists :supersede
                                   :if-does-not-exist :create)
       (let ((*print-pretty* nil) (*print-readably* t))
         (print (list :antigonus-save +save-version+ :engine +engine-version+
                      :payload (mundo-para-dados mundo)) s)))
-    (when (probe-file caminho) (delete-file caminho))
-    (rename-file temporario caminho))
+    (when (probe-file caminho)
+      (uiop:copy-file caminho (format nil "~A.bak" caminho)))
+    (uiop:rename-file-overwriting-target temporario caminho))
   caminho)
 (defun load-game (caminho)
   (with-open-file (s caminho :direction :input)
     (let ((*read-eval* nil))
       (let ((dados (read s nil nil)))
-        (unless (and (listp dados) (member (getf dados :antigonus-save) '(1 2)))
-          (error "Save incompatível ou corrompido: ~A" caminho))
-        (case (getf dados :antigonus-save)
-          (2 (dados-para-mundo (getf dados :payload)))
-          (1
-           (let ((backup (pathname (format nil "~A.v1.bak" (namestring caminho)))))
-             (unless (probe-file backup) (uiop:copy-file caminho backup))
-             (migrar-save-v1 (getf dados :payload)))))))))
+        (unless (listp dados)
+          (error "Save corrompido: ~A" caminho))
+        (let ((versao (getf dados :antigonus-save)))
+          (unless (eql versao +save-version+)
+            (error (if (eq (current-language) :pt)
+                       "SAVE INCOMPATIVEL: esperado schema ~D, encontrado ~A. O arquivo nao foi alterado."
+                       "INCOMPATIBLE SAVE: expected schema ~D, found ~A. The file was not changed.")
+                   +save-version+ versao))
+          (dados-para-mundo (getf dados :payload)))))))
 (defun autosave-game (mundo diretorio &key (slots 3))
-  (let* ((indice (mod (world-tick mundo) slots))
+  (check-type slots (integer 1 *))
+  (let* ((anterior (gethash :autosave-sequence (world-game-data mundo) 0))
+         (indice (mod anterior slots))
          (caminho (merge-pathnames (format nil "autosave-~D.save" indice)
                                    (pathname diretorio))))
-    (save-game mundo caminho)))
+    (setf (gethash :autosave-sequence (world-game-data mundo)) (1+ anterior))
+    (handler-case (save-game mundo caminho)
+      (error (e)
+        (setf (gethash :autosave-sequence (world-game-data mundo)) anterior)
+        (error e)))))
 
 (defun simulation-state-hash (mundo)
   "Hash FNV-1a de 64 bits sobre a representação canônica do mundo."
-  (let ((hash #xcbf29ce484222325)
+  (let* ((dados (mundo-para-dados mundo))
+         (fios
+           (loop for fio in (getf dados :circuit-wires)
+                 for a = (list (getf fio :a-building) (getf fio :a-port))
+                 for b = (list (getf fio :b-building) (getf fio :b-port))
+                 collect (list (getf fio :color)
+                               (sort (list a b) #'porta-circuito<))))
+         (hash #xcbf29ce484222325)
         (texto (with-output-to-string (s)
                  (let ((*print-pretty* nil) (*print-readably* t))
-                   (prin1 (mundo-para-dados mundo) s)))))
+                   ;; IDs de edição dos fios não são estado elétrico da malha.
+                   (setf (getf dados :circuit-wires) (sort fios #'string< :key #'prin1-to-string))
+                   (prin1 dados s)))))
     (loop for c across texto do
       (setf hash (logand #xffffffffffffffff
                          (* (logxor hash (char-code c)) #x100000001b3))))
@@ -1169,22 +1546,52 @@
 (defun remf-copia (lista &rest chaves)
   (loop for (k v) on lista by #'cddr unless (member k chaves) append (list k v)))
 (defun load-mods (mods &key safe-mode)
-  (setf *mods-carregados* nil)
+  (setf *mods-carregados* nil *erros-mods* nil)
   (unless safe-mode
-    (dolist (mod (ordenar-mods mods))
+    (dolist (mod (handler-case (ordenar-mods mods)
+                   (error (e)
+                     (push (list :id :dependencies :message (princ-to-string e)) *erros-mods*)
+                     (dolist (m mods) (setf (mod-manifest-enabled m) nil))
+                     nil)))
       (handler-case
-          (progn (carregar-conteudo-mod mod)
+          (progn
+                 (unless (and (stringp (mod-manifest-engine-version mod))
+                              (let ((partes (uiop:split-string
+                                             (mod-manifest-engine-version mod) :separator ".")))
+                                (and (= (length partes) 3) (string= (first partes) "3")
+                                     (every (lambda (p) (and (plusp (length p))
+                                                            (every #'digit-char-p p))) partes))))
+                   (error (if (eq (current-language) :pt)
+                              "Mod requer API ~A; Antigonus 3 aceita somente API 3.x. Arquivos preservados."
+                              "Mod requires API ~A; Antigonus 3 only accepts API 3.x. Files preserved.")
+                          (mod-manifest-engine-version mod)))
+                 (dolist (dep (mod-manifest-dependencies mod))
+                   (unless (find (if (consp dep) (car dep) dep) *mods-carregados*
+                                 :key #'mod-manifest-id :test #'equal)
+                     (error "Dependência desativada: ~A" dep)))
+                 (carregar-conteudo-mod mod)
                  (dolist (script (mod-manifest-scripts mod))
                    (load (merge-pathnames script (mod-manifest-path mod))))
                  (push mod *mods-carregados*)
                  (engine-log :info "Mod carregado: ~A ~A" (mod-manifest-name mod)
                              (mod-manifest-version mod)))
-        (error (e) (engine-log :error "Falha no mod ~A: ~A" (mod-manifest-id mod) e)))))
-  (nreverse *mods-carregados*))
+        (error (e)
+          (setf (mod-manifest-enabled mod) nil)
+          (push (list :id (mod-manifest-id mod) :message (princ-to-string e)) *erros-mods*)
+          (engine-log :error "Falha no mod ~A: ~A" (mod-manifest-id mod) e)))))
+  (setf *mods-carregados* (nreverse *mods-carregados*)
+        *erros-mods* (nreverse *erros-mods*))
+  *mods-carregados*)
 (defun mod-fingerprint ()
-  (format nil "~36R" (abs (sxhash (mapcar (lambda (m) (list (mod-manifest-id m)
-                                                              (mod-manifest-version m)))
-                                          *mods-carregados*)))))
+  "Fingerprint portátil, independente do SXHASH específico da implementação."
+  (let ((hash #xcbf29ce484222325)
+        (texto (format nil "~{~A~^|~}"
+                        (sort (mapcar (lambda (m) (format nil "~A@~A" (mod-manifest-id m)
+                                                         (mod-manifest-version m)))
+                                      *mods-carregados*) #'string<))))
+    (loop for c across texto do
+      (setf hash (logand #xffffffffffffffff (* (logxor hash (char-code c)) #x100000001b3))))
+    (format nil "~16,'0X" hash)))
 
 (defun engine-log (level format-control &rest args)
   (format *error-output* "~&[ANTIGONUS ~A] ~?~%" (string-upcase (string level))
@@ -1226,6 +1633,23 @@
   (multiple-value-call #'sdl2:set-render-draw-color *renderizador* (cor lista)))
 
 (in-package #:antigonus)
+(defun set-display-mode (width height &key fullscreen (ui-scale 1))
+  "Aplica resolução de janela e escala lógica; fullscreen usa a área do desktop.
+Escalas de 75 a 100% preservam a área útil mínima de 1280×720 da interface."
+  (unless (and (typep width '(integer 1024 7680)) (typep height '(integer 576 4320))
+               (realp ui-scale) (<= 3/4 ui-scale 1))
+    (error "Resolução ou escala de interface inválida."))
+  (when *janela-atual*
+    (sdl2:set-window-fullscreen *janela-atual* (and fullscreen :desktop))
+    (unless fullscreen (sdl2:set-window-size *janela-atual* width height)))
+  (let ((largura (round 1280 ui-scale)) (altura (round 720 ui-scale)))
+    (when antigonus-interno::*renderizador*
+      (unless (zerop (sdl2-ffi.functions:sdl-render-set-logical-size
+                      antigonus-interno::*renderizador* largura altura))
+        (error "Não foi possível aplicar a escala de interface.")))
+    (setf *largura-tela* largura *altura-tela* altura))
+  (setf *modo-video* (list width height :fullscreen (not (null fullscreen)) :ui-scale ui-scale)))
+
 (defun draw-rect (x y width height color &key outline world)
   (when antigonus-interno::*renderizador*
     (when world (multiple-value-setq (x y) (world-to-screen x y))
@@ -1247,6 +1671,27 @@
         for b = (* 2 pi (/ (1+ i) segments))
         do (draw-line (+ x (* radius (cos a))) (+ y (* radius (sin a)))
                       (+ x (* radius (cos b))) (+ y (* radius (sin b))) color :world world)))
+
+(defun capture-renderer (caminho)
+  "Grava o framebuffer real em PPM RGB8, antes de apresentar o quadro."
+  (unless antigonus-interno::*renderizador* (error "Renderizador indisponível."))
+  (multiple-value-bind (largura altura)
+      (sdl2:get-renderer-output-size antigonus-interno::*renderizador*)
+    (let* ((tamanho (* largura altura 3))
+           (pixels (make-array tamanho :element-type '(unsigned-byte 8))))
+      (cffi:with-foreign-object (buffer :uint8 tamanho)
+        (unless (zerop (sdl2-ffi.functions:sdl-render-read-pixels
+                        antigonus-interno::*renderizador* (cffi:null-pointer)
+                        386930691 buffer (* largura 3))) ; SDL_PIXELFORMAT_RGB24
+          (error "Falha no readback do renderizador."))
+        (dotimes (i tamanho) (setf (aref pixels i) (cffi:mem-aref buffer :uint8 i))))
+      (ensure-directories-exist caminho)
+      (with-open-file (s caminho :direction :output :if-exists :supersede
+                                :element-type '(unsigned-byte 8))
+        (loop for c across (format nil "P6~%~D ~D~%255~%" largura altura)
+              do (write-byte (char-code c) s))
+        (write-sequence pixels s))
+      caminho)))
 
 (defun carregar-folha (folha)
   (unless (sprite-sheet-texture folha)
@@ -1334,7 +1779,12 @@
     (#\- 0 0 0 31 0 0 0) (#\_ 0 0 0 0 0 0 31)
     (#\. 0 0 0 0 0 12 12) (#\: 0 12 12 0 12 12 0)
     (#\/ 1 2 2 4 8 8 16) (#\+ 0 4 4 31 4 4 0)
-    (#\! 4 4 4 4 4 0 4) (#\? 14 17 1 2 4 0 4)))
+    (#\! 4 4 4 4 4 0 4) (#\? 14 17 1 2 4 0 4)
+    (#\< 1 2 4 8 4 2 1) (#\> 16 8 4 2 4 8 16)
+    (#\= 0 0 31 0 31 0 0) (#\* 0 21 14 31 14 21 0)
+    (#\# 10 31 10 10 31 10 0) (#\| 4 4 4 4 4 4 4)
+    (#\% 17 2 4 8 17 0 0)
+    (#\( 2 4 8 8 8 4 2) (#\) 8 4 2 2 2 4 8)))
 (defun normalizar-caractere (c)
   (let ((pos (position c "ÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇáàâãäéèêëíìîïóòôõöúùûüç")))
     (if pos (char "AAAAAEEEEIIIIOOOOOUUUUCaaaaaeeeeiiiiooooouuuuc" pos)
@@ -1397,8 +1847,12 @@
         (handler-case (sdl2-image:init '(:png))
           (error (e) (engine-log :warning "SDL2_image indisponível: ~A" e)))
         (let ((*renderizador* renderer)
+              (antigonus::*janela-atual* janela)
+              (controles (loop for i below (sdl2:joystick-count)
+                              when (sdl2:game-controller-p i) collect (sdl2:game-controller-open i)))
               (ultimo (get-internal-real-time)) (acumulador 0.0)
               (passo (/ 1.0 30.0)))
+          (when antigonus::*modo-video* (apply #'set-display-mode antigonus::*modo-video*))
           (sdl2:with-event-loop (:method :poll)
             (:keydown (:keysym keysym) (atualizar-tecla keysym t))
             (:keyup (:keysym keysym) (atualizar-tecla keysym nil))
@@ -1410,8 +1864,22 @@
             (:mousebuttonup (:button button :x x :y y)
               (enviar-entrada :mouse-up button x y))
             (:mousewheel (:x x :y y) (enviar-entrada :mouse-wheel x y))
+            (:controllerdeviceadded (:which which)
+              (when (sdl2:game-controller-p which)
+                (let ((novo (sdl2:game-controller-open which)))
+                  (if (some (lambda (controle)
+                              (= (sdl2:game-controller-instance-id controle)
+                                 (sdl2:game-controller-instance-id novo))) controles)
+                      (sdl2:game-controller-close novo)
+                      (push novo controles)))))
             (:controlleraxismotion (:axis axis :value value)
               (enviar-entrada :controller-axis axis value))
+            (:controllerdeviceremoved (:which which)
+              (let ((controle (find which controles :key #'sdl2:game-controller-instance-id)))
+                (when controle
+                  (setf controles (remove controle controles))
+                  (sdl2:game-controller-close controle)))
+              (enviar-entrada :controller-disconnected))
             (:controllerbuttondown (:button button)
               (enviar-entrada :controller-down button))
             (:controllerbuttonup (:button button)
@@ -1438,7 +1906,8 @@
                          antigonus::*mundo-atual*
                          (/ acumulador passo)))
               (sdl2:render-present renderer))
-            (:quit () t)))
+            (:quit () t))
+          (dolist (controle controles) (sdl2:game-controller-close controle)))
         (when antigonus::*audio-pronto*
           (maphash (lambda (id som) (declare (ignore id))
                      (when (getf som :chunk) (sdl2-mixer:free-chunk (getf som :chunk))))

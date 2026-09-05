@@ -1,11 +1,15 @@
 # Antigonus + Asterion Assembly
 
+> `upgrade/3.0`: demo de circuitos em desenvolvimento, ainda sem aceite comercial.
+> API `3.0.0`, save schema `3`. Saves/mods 1/2 são recusados sem alteração.
+> Veja [estado, comandos e pendências](docs/UPGRADE-3.md).
+
 Antigonus é uma engine Common Lisp macro-dirigida para jogos 2D de automação.
 Toda a engine está em [`antigonus.lisp`](antigonus.lisp); a API pública é em
 inglês e o código interno é em pt-BR. Asterion Assembly é o jogo completo de
 exemplo, com campanha, sandbox, logística, produção, pesquisa, fauna e trens.
 O mundo usa atlas raster originais em `assets/sprites`, incluindo um atlas
-estático com um sprite exclusivo para cada uma das 52 construções, biomas e
+estático com um sprite exclusivo para cada uma das 54 construções, biomas e
 fauna, além de spritesheets animadas de 8 frames para máquinas, esteiras,
 unidades e efeitos. O engenheiro humanoide possui um atlas sem armas para
 repouso, caminhada, construção e manutenção; ações ofensivas ficam isoladas em
@@ -23,7 +27,7 @@ vegetação, cristais, ruínas, detritos e sinais visuais de poluição ou resta
 direção do cursor, com VFX determinísticos de disparo e impacto.
 Construções lineares aceitam arrasto com orientação automática, `Z` desfaz a
 construção recente e divisores alternam itens de forma determinística entre
-duas pistas com posições exatas. O catálogo pagina os 52 edifícios sem animar
+duas pistas com posições exatas. O catálogo pagina os 54 edifícios sem animar
 ícones. O inspetor contextual mostra energia, conteúdo, receita e taxa sem
 interromper a simulação.
 Primitivas geométricas ficam restritas à interface, sombras, depuração e

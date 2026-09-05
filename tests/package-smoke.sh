@@ -8,6 +8,15 @@ unzip -qo "$raiz/dist/asterion-assembly-linux-x64.zip" -d "$saida"
 cd "$saida/AsterionAssembly-linux-x64"
 export SDL_AUDIODRIVER=dummy
 
+timeout 60 ./play.sh --headless-smoke >headless.log 2>&1
+timeout 60 ./play.sh --render-smoke >render.log 2>&1
+grep -q 'CIRCUIT SMOKE OK' headless.log
+grep -q 'CIRCUIT SMOKE OK' render.log
+[[ "$(identify -format '%m %wx%h' circuit-smoke.ppm)" == 'PPM 1280x720' ]]
+if grep -Eiq 'unhandled|fatal|backtrace|ANTIGONUS ERROR|encerrou com erro' headless.log render.log; then
+  exit 1
+fi
+
 ./play.sh --en >smoke.log 2>&1 &
 pid_jogo=$!
 janela=""

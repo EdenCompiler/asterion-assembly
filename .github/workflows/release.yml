@@ -9,11 +9,11 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v5
-      - run: sudo apt-get update && sudo apt-get install -y sbcl libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev zip curl ffmpeg xvfb xdotool imagemagick librsvg2-bin
+      - run: sudo apt-get update && sudo apt-get install -y sbcl libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev zip curl ffmpeg xvfb xdotool imagemagick librsvg2-bin openbox
       - run: curl -O https://beta.quicklisp.org/quicklisp.lisp && sbcl --non-interactive --load quicklisp.lisp --eval '(quicklisp-quickstart:install)' --eval '(ql:quickload :sdl2)'
       - run: make test
       - run: make playtest
-      - run: make package-linux
+      - run: make smoke-package
       - uses: actions/upload-artifact@v4
         with:
           name: asterion-assembly-linux-x64
@@ -46,7 +46,20 @@ jobs:
           $env:PATH="$env:SDL_BIN;$env:PATH"
           Invoke-WebRequest https://beta.quicklisp.org/quicklisp.lisp -OutFile quicklisp.lisp
           sbcl --non-interactive --load quicklisp.lisp --eval '(quicklisp-quickstart:install)'
+          if ($LASTEXITCODE -ne 0) { throw 'Quicklisp installation failed' }
+          sbcl --script tests/portable-circuit-tests.lisp
+          if ($LASTEXITCODE -ne 0) { throw 'Portable circuit/tutorial tests failed' }
           ./scripts/build-windows.ps1
+          ./tests/package-smoke.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-smoke-evidence
+          path: |
+            build/windows-smoke/**/*.log
+            build/windows-smoke/**/*.err
+            build/windows-smoke/**/*.ppm
+          if-no-files-found: warn
       - uses: actions/upload-artifact@v4
         with:
           name: asterion-assembly-windows-x64
