@@ -1,7 +1,7 @@
 # Antigonus 3.0 — estado do marco / milestone status
 
-Branch de desenvolvimento: `upgrade/3.0`. API `3.0.0`, save schema `3`.
-Integração em `main` solicitada pelo usuário após esta etapa de testes.
+Desenvolvido em `upgrade/3.0`, integrado em `main` nesta etapa a pedido do usuário.
+API `3.0.0`, save schema `3`.
 Versão de desenvolvimento; não é uma declaração de aceite da demo pública.
 
 ## Entregue nesta etapa
@@ -63,18 +63,26 @@ direita alterna paleta. Analógico esquerdo move o personagem.
 - Gamepad virtual conectado pela SDL: botões, fio, abas, cor/brilho da lâmpada,
   eixo do cursor e desconexão com eixos zerados. Não apenas chamadas à API de entrada.
 - Benchmark isolado: 5.000 dispositivos, 10.000 fios, 1.000 combinadores;
-  13,07 ms/tick (76,5 UPS) neste computador após os novos controles. Não equivale ao desempenho do
+  16,53 ms/tick (60,5 UPS) neste computador na verificação final local. Não equivale ao desempenho do
   jogo inteiro nem ao teste de megabase com renderização.
-- Smoke do ZIP Linux executado localmente e na CI. O ZIP Windows de `9b01374`
-  passou no Wine 10, em prefixo novo e display X virtual, incluindo simulação,
-  persistência e readback OpenGL 4.5. Isso não substitui o teste nativo.
+- Smoke do ZIP Linux executado localmente e na CI.
+- [CI nativa aprovada em 06/09/2026](https://github.com/EdenCompiler/asterion-assembly/actions/runs/34022245281):
+  Linux, Windows Server 2022 e comparação de hashes. Windows executou o ZIP,
+  produziu readback 1280×720 em OpenGL 4.6/Mesa e encerrou normalmente.
+  Mesa é driver de teste do runner, não faz parte do ZIP distribuído.
+- O mesmo ZIP Windows (`62d9ce5`) passou no Wine 10, com extração e prefixo
+  novos, display virtual, simulação, persistência e readback OpenGL 4.5.
 - Linux/Windows nativos produziram o hash `72846DB4265264D3` após 120 ticks
-  na execução CI `34009810061`. Coordenadas da fauna usam grade de 1/65536 tile
+  na execução CI `34022245281`. Coordenadas da fauna usam grade de 1/65536 tile
   para eliminar resíduos diferentes das funções trigonométricas nativas.
 - Falha deliberada na thread SDL chega ao chamador; texturas/áudio são liberados
   durante o unwind e uma segunda janela consegue recriar os recursos.
-- CI Windows agora executa também os seis desafios nas quatro dificuldades e
-  testes portáteis de controles/perfis, preserva logs/readback e rejeita captura
+- Backend OpenGL confirmado pela SDL e pela versão real do contexto, não apenas
+  por um hint. Um contexto 2.1 forçado foi recusado com diagnóstico e saída 1.
+  No Windows, drivers WGL externos ficam carregados até o fim do processo;
+  janelas, contextos e recursos gráficos continuam sendo liberados normalmente.
+- CI Windows passou 134 verificações, incluindo os seis desafios nas quatro
+  dificuldades e controles/perfis; preserva logs/readback e rejeita captura
   vazia além de conferir assinatura e dimensões.
 
 Reproduzir:
@@ -107,8 +115,9 @@ a resolução escolhida é usada ao voltar ao modo janela.
 - Ampliar sensores/testes, erros de mods, combinações incompatíveis e recuperação
   automática de gravação interrompida; `.bak` atualmente oferece cópia anterior.
 - Validar gamepads físicos, mais resoluções e ausência de flicker em sessões longas.
-- Executar CI e smoke nativos Windows, Wine e sistemas limpos. Atualizar texto
-  de loja e apresentação final sem prometer itens ainda não validados.
+- Testar instalações de jogador Windows 10/11 e drivers de GPU físicos: o runner
+  Server 2022 com Mesa e o Wine não substituem essa matriz. Atualizar texto de
+  loja e apresentação final sem prometer itens ainda não validados.
 
 ## English summary
 
@@ -118,5 +127,7 @@ packaged smoke commands are implemented. Old saves/mods are intentionally
 rejected, never migrated or overwritten. New saves use `saves/v3/`.
 Local automated checks are not a substitute for the full first-hour mouse and
 controller playthroughs. Actuator controls, persisted display/audio profiles and
-real SDL virtual-controller tests are now implemented. Native Windows validation,
-remapping, save/profile pickers and commercial polish still require completion.
+real SDL virtual-controller tests are now implemented. Linux and native Windows
+Server 2022 CI passed, including packaged OpenGL readback and matching simulation
+hashes. Consumer Windows/GPU coverage, remapping, save/profile pickers and
+commercial polish still require completion.
