@@ -54,7 +54,7 @@ direita alterna paleta. Analógico esquerdo move o personagem.
 
 ## Evidências locais
 
-- `make test`: 320 verificações, incluindo os seis desafios nas quatro
+- `make test`: 322 verificações, incluindo os seis desafios nas quatro
   dificuldades, casos negativos, conservação da bomba e eventos de gamepad.
 - Playtests: oito telas de menu, 27 capturas gerais, cinco de circuitos,
   três de configurações e um readback de gamepad SDL (44 imagens).
@@ -65,8 +65,14 @@ direita alterna paleta. Analógico esquerdo move o personagem.
 - Benchmark isolado: 5.000 dispositivos, 10.000 fios, 1.000 combinadores;
   13,07 ms/tick (76,5 UPS) neste computador após os novos controles. Não equivale ao desempenho do
   jogo inteiro nem ao teste de megabase com renderização.
-- Smoke do ZIP Linux executado localmente. A CI Windows foi preparada, mas não
-  há resultado nativo Windows/Wine validado nesta sessão.
+- Smoke do ZIP Linux executado localmente e na CI. O ZIP Windows de `9b01374`
+  passou no Wine 10, em prefixo novo e display X virtual, incluindo simulação,
+  persistência e readback OpenGL 4.5. Isso não substitui o teste nativo.
+- Linux/Windows nativos produziram o hash `72846DB4265264D3` após 120 ticks
+  na execução CI `34009810061`. Coordenadas da fauna usam grade de 1/65536 tile
+  para eliminar resíduos diferentes das funções trigonométricas nativas.
+- Falha deliberada na thread SDL chega ao chamador; texturas/áudio são liberados
+  durante o unwind e uma segunda janela consegue recriar os recursos.
 - CI Windows agora executa também os seis desafios nas quatro dificuldades e
   testes portáteis de controles/perfis, preserva logs/readback e rejeita captura
   vazia além de conferir assinatura e dimensões.
@@ -78,6 +84,7 @@ make test
 make playtest
 sbcl --script tests/circuit-benchmark.lisp
 make smoke-package
+xvfb-run -a bash tests/package-smoke-wine.sh /caminho/asterion-assembly-windows-x64.zip
 ```
 
 O teste de fullscreen requer Openbox em `PATH` (ou caminho absoluto em

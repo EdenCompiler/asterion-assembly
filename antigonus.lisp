@@ -1865,8 +1865,12 @@ Escalas de 75 a 100% preservam a área útil mínima de 1280×720 da interface."
     (sdl2:set-hint :render-driver "opengl")
     (sdl2:set-hint :render-batching "1")
     (sdl2:set-hint :render-scale-quality "0")
-    (sdl2:gl-set-attrs :context-major-version 3 :context-minor-version 3
-                       :context-profile-mask 2 :doublebuffer 1)
+    ;; O batcher SDL2 solicita contexto de compatibilidade 2.1 internamente.
+    ;; Usar os mesmos atributos evita recriar a janela e descarregar/recarregar
+    ;; WGL/Mesa durante SDL_CreateRenderer. A versão REAL continua sendo
+    ;; validada como >= 3.3 antes de qualquer frame (sem fallback de backend).
+    (sdl2:gl-set-attrs :context-major-version 2 :context-minor-version 1
+                       :context-profile-mask 0 :doublebuffer 1)
     (sdl2:with-window (janela :title (game-config-title antigonus::*configuracao-atual*)
                               :w antigonus::*largura-tela* :h antigonus::*altura-tela*
                               :flags '(:shown :resizable :opengl))

@@ -2,6 +2,10 @@
 
 ## 3.0.0-dev — 2026-09-05
 
+- Corrigido resíduo de coordenadas da fauna entre Linux e Windows; smoke nativo
+  compara 120 ticks completos, não apenas circuitos estáticos.
+- Erros na thread SDL são propagados ao chamador, com liberação de texturas e áudio.
+- ZIP Windows com caminhos portáveis; teste Wine usa extração e prefixo novos.
 - Controles persistentes de bomba/divisor/lâmpada/alarme e decisor no painel.
 - Perfis seguros, resolução/fullscreen, UI 75–100% e áudio por grupos.
 - Alarmes sintetizados originais; catálogo de sinais inclui conteúdo de mods.

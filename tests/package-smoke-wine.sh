@@ -2,9 +2,11 @@
 set -euo pipefail
 raiz="$(cd "$(dirname "$0")/.." && pwd)"
 pacote="${1:-$raiz/dist/asterion-assembly-windows-x64.zip}"
-saida="$raiz/build/wine-smoke"
 [[ -f "$pacote" ]]
-mkdir -p "$saida"
+# Extração limpa: DLLs/permissões de um ZIP anterior não podem mascarar o teste.
+mkdir -p "$raiz/build"
+saida="$(mktemp -d "$raiz/build/wine-smoke-XXXXXX")"
+echo "Wine evidence: $saida"
 unzip -qo "$pacote" -d "$saida"
 # Prefixo exclusivo do teste; nenhum atalho/janela vai para o desktop do usuário.
 export WINEPREFIX="$saida/prefix"
