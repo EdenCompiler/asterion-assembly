@@ -1857,6 +1857,25 @@ Escalas de 75 a 100% preservam a área útil mínima de 1280×720 da interface."
            (error (erro) (setf ,falha erro))))
        (when ,falha (error ,falha)))))
 
+(defvar *biblioteca-kernel32* nil)
+(defun fixar-driver-opengl-externo ()
+  "Mantém WGL externo até terminar o processo; não altera o driver do sistema."
+  #+win32
+  (let ((biblioteca (uiop:getenv "SDL_OPENGL_LIBRARY")))
+    (when biblioteca
+      ;; Mesa/WGL pode bloquear em DLL_PROCESS_DETACH durante FreeLibrary.
+      ;; GET_MODULE_HANDLE_EX_FLAG_PIN mantém as dependências vivas até a saída
+      ;; do processo. Janela, contexto, texturas e áudio continuam sendo liberados.
+      (unless *biblioteca-kernel32*
+        (setf *biblioteca-kernel32* (cffi:load-foreign-library "kernel32.dll")))
+      (cffi:with-foreign-string (nome (substitute #\\ #\/ biblioteca) :encoding :utf-16le)
+        (cffi:with-foreign-object (modulo :pointer)
+          (when (zerop (cffi:foreign-funcall "GetModuleHandleExW"
+                         :uint 1 :pointer nome :pointer modulo :int))
+            (error "Falha ao manter driver WGL externo / Cannot pin external WGL driver.")))))
+    (when biblioteca (engine-log :info "WGL externo mantido até o fim do processo")))
+  #-win32 nil)
+
 (defun executar-sdl ()
   (com-sdl-segura (:video :audio :gamecontroller)
     (engine-log :info "SDL inicializada; criando janela OpenGL")
@@ -1875,6 +1894,7 @@ Escalas de 75 a 100% preservam a área útil mínima de 1280×720 da interface."
                               :w antigonus::*largura-tela* :h antigonus::*altura-tela*
                               :flags '(:shown :resizable :opengl))
       (engine-log :info "Janela criada; inicializando renderizador OpenGL explícito")
+      (fixar-driver-opengl-externo)
       (sdl2:with-renderer (renderer janela :index (indice-driver-opengl)
                                          :flags '(:accelerated :presentvsync))
         (verificar-renderizador-opengl renderer)

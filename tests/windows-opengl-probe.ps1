@@ -6,6 +6,7 @@ if ($Child) {
 using System;
 using System.Runtime.InteropServices;
 public static class OpenGLProbe {
+    [DllImport("kernel32.dll", CharSet=CharSet.Unicode)] static extern bool GetModuleHandleExW(uint flags, string name, out IntPtr handle);
     [DllImport("SDL2.dll", CallingConvention=CallingConvention.Cdecl)] static extern int SDL_Init(uint flags);
     [DllImport("SDL2.dll", CallingConvention=CallingConvention.Cdecl)] static extern int SDL_GL_SetAttribute(int attr, int value);
     [DllImport("SDL2.dll", CallingConvention=CallingConvention.Cdecl)] static extern IntPtr SDL_CreateWindow(string title, int x, int y, int w, int h, uint flags);
@@ -20,6 +21,10 @@ public static class OpenGLProbe {
         SDL_GL_SetAttribute(17, 3); SDL_GL_SetAttribute(18, 3); SDL_GL_SetAttribute(21, 2);
         var window = SDL_CreateWindow("OpenGL CI probe", 0, 0, 320, 240, 6);
         Console.WriteLine("PROBE window: " + window);
+        IntPtr module;
+        if (!GetModuleHandleExW(1, Environment.GetEnvironmentVariable("SDL_OPENGL_LIBRARY"), out module))
+            throw new Exception("Cannot pin external WGL module");
+        Console.WriteLine("PROBE WGL module pinned: " + module);
         var context = SDL_GL_CreateContext(window);
         Console.WriteLine("PROBE context: " + context + "; error: " + Marshal.PtrToStringAnsi(SDL_GetError()));
         SDL_GL_DeleteContext(context);
