@@ -13,6 +13,7 @@ try {
         $Process = [System.Diagnostics.Process]::new()
         $Process.StartInfo.FileName = Join-Path (Get-Location) 'asterion-assembly.exe'
         $Process.StartInfo.WorkingDirectory = (Get-Location).Path
+        $Process.StartInfo.EnvironmentVariables['ASTERION_SMOKE_SNAPSHOT'] = '1'
         $Process.StartInfo.EnvironmentVariables['PATH'] = "$((Get-Location).Path);$env:SystemRoot\System32;$env:SystemRoot"
         if ($Mode -eq '--render-smoke' -and $env:ASTERION_CI_OPENGL_DIR) {
             # Driver de teste do runner, não um backend SDL alternativo nem
@@ -30,11 +31,13 @@ try {
             if (!$Process.Start()) { throw "Smoke could not start: $Mode" }
             $OutputTask = $Process.StandardOutput.ReadToEndAsync()
             $ErrorTask = $Process.StandardError.ReadToEndAsync()
-            if (!$Process.WaitForExit(60000)) { $Process.Kill(); throw "Smoke timeout: $Mode" }
+            $TimedOut = !$Process.WaitForExit(60000)
+            if ($TimedOut) { $Process.Kill(); $Process.WaitForExit() }
             $OutputText = $OutputTask.GetAwaiter().GetResult()
             $ErrorText = $ErrorTask.GetAwaiter().GetResult()
             [System.IO.File]::WriteAllText((Join-Path (Get-Location) $Log), $OutputText)
             [System.IO.File]::WriteAllText((Join-Path (Get-Location) "$Log.err"), $ErrorText)
+            if ($TimedOut) { throw "Smoke timeout: $Mode`n$OutputText`n$ErrorText" }
             if ($Process.ExitCode -ne 0) { throw "Smoke exit code $($Process.ExitCode): $ErrorText" }
             $Text = $OutputText + $ErrorText
         } finally { $Process.Dispose() }

@@ -3924,6 +3924,8 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
     (connect-circuit mundo combinador lampada :port-a :output)
     (dotimes (i 3) (sistema-circuitos mundo))
     (assert (getf (building-state lampada) :lamp-active))
+    (when (uiop:getenv "ASTERION_SMOKE_SNAPSHOT")
+      (save-game mundo "circuit-smoke.save"))
     (let ((arquivo (merge-pathnames (format nil "asterion-smoke-~A.save" (gensym))
                                     (uiop:temporary-directory))))
       (unwind-protect

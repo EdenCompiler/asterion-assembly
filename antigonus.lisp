@@ -1848,6 +1848,7 @@ Escalas de 75 a 100% preservam a área útil mínima de 1280×720 da interface."
     (engine-log :info "Renderer: opengl; OpenGL: ~A; batching SDL ativo" versao)))
 (defun executar-sdl ()
   (sdl2:with-init (:video :audio :gamecontroller)
+    (engine-log :info "SDL inicializada; criando janela OpenGL")
     ;; A versão 2.0 fixa o backend SDL no driver OpenGL e habilita o lote
     ;; interno de comandos. Não há seleção automática de Direct3D/software.
     (sdl2:set-hint :render-driver "opengl")
@@ -1858,6 +1859,7 @@ Escalas de 75 a 100% preservam a área útil mínima de 1280×720 da interface."
     (sdl2:with-window (janela :title (game-config-title antigonus::*configuracao-atual*)
                               :w antigonus::*largura-tela* :h antigonus::*altura-tela*
                               :flags '(:shown :resizable :opengl))
+      (engine-log :info "Janela criada; inicializando renderizador OpenGL explícito")
       (sdl2:with-renderer (renderer janela :index (indice-driver-opengl)
                                          :flags '(:accelerated :presentvsync))
         (verificar-renderizador-opengl renderer)

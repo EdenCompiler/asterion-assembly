@@ -21,6 +21,7 @@ jobs:
           path: |
             build/package-smoke/**/*.log
             build/package-smoke/**/*.ppm
+            build/package-smoke/**/*.save
       - uses: actions/upload-artifact@v4
         with:
           name: asterion-assembly-linux-x64
@@ -74,8 +75,10 @@ jobs:
             build/windows-smoke/**/*.log
             build/windows-smoke/**/*.err
             build/windows-smoke/**/*.ppm
+            build/windows-smoke/**/*.save
           if-no-files-found: warn
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: asterion-assembly-windows-x64
           path: dist/asterion-assembly-windows-x64.zip

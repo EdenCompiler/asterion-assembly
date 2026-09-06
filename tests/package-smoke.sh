@@ -7,6 +7,7 @@ mkdir -p "$saida"
 unzip -qo "$raiz/dist/asterion-assembly-linux-x64.zip" -d "$saida"
 cd "$saida/AsterionAssembly-linux-x64"
 export SDL_AUDIODRIVER=dummy
+export ASTERION_SMOKE_SNAPSHOT=1
 
 timeout 60 ./play.sh --headless-smoke >headless.log 2>&1
 timeout 60 ./play.sh --render-smoke >render.log 2>&1
