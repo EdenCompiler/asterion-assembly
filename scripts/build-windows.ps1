@@ -14,7 +14,7 @@ Copy-Item "$Dist\asterion-assembly.exe" $Package
 Copy-Item "$Root\LICENSE", "$Root\THIRD_PARTY.md", "$Root\README.md" $Package
 Copy-Item -Recurse "$Root\assets" $Package
 Copy-Item -Recurse "$Root\mods\example-more-belts" "$Package\mods"
-Copy-Item "$Root\docs\MANUAL.md", "$Root\docs\MODDING.md", "$Root\docs\API.md", "$Root\docs\UPGRADE-3.md" "$Package\docs"
+Copy-Item "$Root\docs\MANUAL.md", "$Root\docs\MODDING.md", "$Root\docs\API.md", "$Root\docs\UPGRADE-3.md", "$Root\docs\PLAYTEST-3-2026-09-06.md" "$Package\docs"
 if ($env:SDL_BIN) { Copy-Item "$env:SDL_BIN\*.dll" $Package }
 # Entradas ZIP usam barras normais também no Windows (APPNOTE), permitindo
 # extração sem avisos/falhas com Info-ZIP no Linux e no smoke test Wine.

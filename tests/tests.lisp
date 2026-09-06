@@ -505,6 +505,6 @@
                     teste-ferrovia-e-plantas-2-0 teste-integracao-asterion-2-0
                     teste-logistica-especializada-2-0 teste-circuitos-3-0
                     teste-tutorial-circuitos teste-gamepad-circuitos
-                    teste-atuadores-avancados teste-configuracoes-persistentes))
+                    teste-atuadores-avancados teste-configuracoes-persistentes teste-paineis-jogador))
     (format t "~&[TEST] ~A~%" teste) (funcall teste))
   (format t "~&OK — ~D verificações concluídas.~%" *executados*) t)

@@ -55,6 +55,7 @@
 (defvar *escala-ui-configurada* 1)
 (defvar *paleta-configurada* nil)
 (defvar *perfil-gravavel* t)
+(defvar *perfil-ativo* nil)
 (defvar *mensagem-menu* "")
 (defvar *indice-tecnologia* 0)
 (defvar *arrasto-construcao* nil)
@@ -471,6 +472,8 @@
     ((dentro-mancha-p mundo x y 5 -4 3.0 13) :copper-ore)
     ((dentro-mancha-p mundo x y -5 5 3.1 17) :stone)
     ((dentro-mancha-p mundo x y 5 5 2.8 19) :coal)
+    ;; A lição de fluidos precisa ser alcançável em qualquer seed inicial.
+    ((dentro-mancha-p mundo x y 0 7 1.8 23) :water)
     ((> (ruido-suave mundo x y 41 7.0) .79)
      (nth (min 7 (floor (* 8 (ruido-suave mundo x y 97 19.0))))
           '(:iron-ore :copper-ore :stone :coal :silica :oil :water :asterion-crystal)))))
@@ -1448,7 +1451,8 @@ visivelmente desligados até existir capacidade, em vez de alternarem a 30 Hz."
     ((:gear . 24) (:belt-part . 30) (:circuit . 30) (:wire-red . 20) (:wire-green . 20))
     ((:science-red . 25) (:circuit . 20) (:belt-part . 40))
     ((:pipe . 30) (:steel-plate . 20) (:engine . 4))
-    ((:circuit . 24) (:wire-red . 12) (:wire-green . 12))
+    ;; O kit do contador inclui cobre para sua lâmpada; não exige uma cadeia extra.
+    ((:circuit . 24) (:copper-wire . 8) (:wire-red . 12) (:wire-green . 12))
     ((:rail-part . 100) (:signal-part . 12) (:processor . 12) (:logistic-drone . 4))
     ((:rocket . 20) (:repair-pack . 20))
     ((:hive-charge . 2) (:plasma-cell . 20))))
@@ -2730,7 +2734,7 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
     (desenhar-guia-circuitos mundo)
     (when *mostrar-ajuda*
       (draw-rect 12 (- (screen-height) 117) 470 23 '(7 12 20 235))
-      (draw-text (translate :help) 22 (- (screen-height) 110) '(175 197 207 255) :scale 1))
+      (draw-text (ajuda-controles-jogador) 22 (- (screen-height) 110) '(175 197 207 255) :scale 1))
     (when *mostrar-estatisticas*
       (let ((painel-x (if *mostrar-catalogo* (- (screen-width) 572)
                           (- (screen-width) 330))))
@@ -2778,7 +2782,7 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
 (defun caminho-quicksave () (merge-pathnames "quicksave.save" (diretorio-saves)))
 
 (defun caminho-perfil ()
-  (let ((nome (or (uiop:getenv "ASTERION_PROFILE") "default")))
+  (let ((nome (or *perfil-ativo* (uiop:getenv "ASTERION_PROFILE") "default")))
     (unless (and (<= 1 (length nome) 48)
                  (every (lambda (c) (or (find c "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
                                         nil)) nome))
@@ -2790,7 +2794,7 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
         :effects-volume (audio-bus-volume :effects) :alerts-volume (audio-bus-volume :alerts)
         :reduced-flashes *reduzir-flashes* :colorblind *paleta-configurada*
         :resolution *resolucao-configurada* :fullscreen *tela-cheia-configurada*
-        :ui-scale *escala-ui-configurada*))
+        :ui-scale *escala-ui-configurada* :bindings (dados-controles)))
 
 (defun validar-configuracoes (dados)
   "Valida o documento inteiro antes de mudar qualquer configuração ativa."
@@ -2803,6 +2807,7 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
                (member (getf dados :resolution) '((1280 720) (1600 900) (1920 1080)) :test #'equal)
                (member (getf dados :ui-scale) '(3/4 9/10 1)))
     (error "Perfil inválido; arquivo preservado / Invalid profile; file preserved."))
+  (validar-controles (getf dados :bindings))
   dados)
 
 (defun aplicar-configuracoes (dados)
@@ -2818,6 +2823,7 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
         *tela-cheia-configurada* (getf dados :fullscreen)
         *escala-ui-configurada* (getf dados :ui-scale))
   (set-audio-volume *volume-configurado*)
+  (aplicar-controles (getf dados :bindings))
   (set-audio-bus-volume :effects (getf dados :effects-volume))
   (set-audio-bus-volume :alerts (getf dados :alerts-volume)))
 
@@ -2876,7 +2882,7 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
         for y = (+ 260 (* i 58)) do
     (desenhar-botao-menu (translate chave) 92 y 330 (= i *indice-menu*)
                          :desabilitado (and (eq chave :continue)
-                                            (not (probe-file (caminho-quicksave))))))
+                                            (null (arquivos-save)))))
   (draw-text +engine-version+ 92 (- (screen-height) 30) '(103 128 141 255) :scale 1)
   (when (> (length *mensagem-menu*) 0)
     (draw-text *mensagem-menu* 92 620 '(255 111 130 255) :scale 1)))
@@ -2894,6 +2900,8 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
 (defun desenhar-configuracoes ()
   (desenhar-fundo-menu)
   (draw-text (translate :settings) 92 238 '(112 245 220 255) :scale 2)
+  (desenhar-botao-menu (texto-local "CONTROLES" "CONTROLS") 622 228 230 (= *indice-menu* 12))
+  (desenhar-botao-menu (texto-local "PERFIS" "PROFILES") 882 228 230 (= *indice-menu* 13))
   (let ((idioma (if (eq (current-language) :pt) "PORTUGUES" "ENGLISH"))
         (pt (eq (current-language) :pt)))
     (loop for texto in (list (format nil "~A: ~A" (translate :language) idioma)
@@ -3065,6 +3073,7 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
   (declare (ignore alpha))
   (setf *mundo-corrente-ui* mundo)
   (case *tela-ui*
+    ((:controls :profiles :saves :confirm :inventory) (desenhar-painel-jogador mundo))
     (:main-menu (desenhar-menu-principal))
     (:settings (desenhar-configuracoes))
     (:mods (desenhar-mods))
@@ -3090,11 +3099,11 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
 (defun mover-personagem (mundo)
   (let ((p (personagem mundo)))
     (when p
-      (let ((dx (+ (if (input-down-p :scancode-d) 1.0 0.0)
-                   (if (input-down-p :scancode-a) -1.0 0.0)
+      (let ((dx (+ (if (tecla-jogo-p :scancode-d) 1.0 0.0)
+                   (if (tecla-jogo-p :scancode-a) -1.0 0.0)
                    (aref *eixos-gamepad* 0)))
-            (dy (+ (if (input-down-p :scancode-s) 1.0 0.0)
-                   (if (input-down-p :scancode-w) -1.0 0.0)
+            (dy (+ (if (tecla-jogo-p :scancode-s) 1.0 0.0)
+                   (if (tecla-jogo-p :scancode-w) -1.0 0.0)
                    (aref *eixos-gamepad* 1))))
         (let ((mag (sqrt (+ (* dx dx) (* dy dy)))))
           (setf (getf (entity-data p) :moving) (> mag .05))
@@ -3107,7 +3116,7 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
                 (unless (building-at mundo (floor (entity-x p)) (floor ny))
                   (setf (entity-y p) ny)))
               ;; Parado, o engenheiro acompanha o cursor sem trocar de quadro.
-              (multiple-value-bind (mx my) (mouse-position)
+              (multiple-value-bind (mx my) (posicao-cursor-ui)
                 (multiple-value-bind (wx wy) (screen-to-world mx my)
                   (let ((alvo-x (/ wx +tamanho-celula+))
                         (alvo-y (/ wy +tamanho-celula+)))
@@ -3507,16 +3516,14 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
     (:new-game
      (abrir-sessao (new-game :seed *semente-atual* :difficulty *dificuldade-atual*)))
     (:continue
-     (when (probe-file (caminho-quicksave))
-       (handler-case (abrir-sessao (load-game (caminho-quicksave)))
-         (error (e) (setf *mensagem-menu* (format nil "SAVE INVALID: ~A" e))))))
+     (abrir-seletor :saves :load))
     (:settings
      (setf *retorno-configuracoes* *tela-ui* *tela-ui* :settings *indice-menu* 0))
     (:mods (setf *tela-ui* :mods *indice-menu* 0))
     (:credits (setf *tela-ui* :credits *indice-menu* 0))
     (:quit (stop-game))
     (:resume (setf *tela-ui* :playing *indice-menu* 0) (garantir-execucao))
-    (:save (salvar-sessao mundo))
+    (:save (abrir-seletor :saves :save))
     (:main-menu
      (salvar-sessao mundo)
      (setf *tela-ui* :main-menu *indice-menu* 0)
@@ -3546,16 +3553,18 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
     (10 (aplicar-configuracoes '(:format 1 :language :en :master-volume 96
                                 :effects-volume 128 :alerts-volume 128 :reduced-flashes t
                                 :colorblind nil :resolution (1280 720) :fullscreen nil :ui-scale 1)))
-    (11 (setf *tela-ui* *retorno-configuracoes* *indice-menu* 0)))
+    (11 (setf *tela-ui* *retorno-configuracoes* *indice-menu* 0))
+    (12 (abrir-seletor :controls))
+    (13 (abrir-seletor :profiles)))
     (when (member indice '(3 4 5))
       (apply #'set-display-mode (append *resolucao-configurada*
              (list :fullscreen *tela-cheia-configurada* :ui-scale *escala-ui-configurada*))))
     (when *mundo-corrente-ui* (setf (dado *mundo-corrente-ui* :colorblind-circuits) *paleta-configurada*))
-    (unless (member indice '(9 11)) (salvar-configuracoes)))
+    (unless (member indice '(9 11 12 13)) (salvar-configuracoes)))
    (error (e) (setf *mensagem-menu* (princ-to-string e)))))
 
 (defun quantidade-opcoes-menu ()
-  (case *tela-ui* (:main-menu 6) (:pause 5) (:settings 12) (otherwise 1)))
+  (case *tela-ui* (:main-menu 6) (:pause 5) (:settings 14) (otherwise 1)))
 
 (defun acionar-indice-menu (mundo)
   (case *tela-ui*
@@ -3603,6 +3612,8 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
        (let ((i (indice-clique-menu x y (- (/ (screen-width) 2) 165) 238 330 5)))
          (when i (setf *indice-menu* i) (acionar-indice-menu mundo))))
       (:settings
+       (cond ((and (<= 622 x 852) (<= 228 y 274)) (ativar-configuracao 12))
+             ((and (<= 882 x 1112) (<= 228 y 274)) (ativar-configuracao 13)))
        (loop for coluna below 2
              for i = (indice-clique-menu x y (+ 92 (* coluna 530)) 292 490 6)
              when i do (setf *indice-menu* (+ i (* coluna 6)))
@@ -3667,9 +3678,12 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
     (otherwise t)))
 
 (defun entrada (mundo tipo &rest dados)
+  (entrada-jogador mundo tipo dados))
+
+(defun entrada-canonica (mundo tipo &rest dados)
   (when (eq tipo :controller-disconnected)
     (fill *eixos-gamepad* 0.0) (setf *gamepad-ativo* nil)
-    (return-from entrada t))
+    (return-from entrada-canonica t))
   (when (member tipo '(:controller-axis :controller-down)) (setf *gamepad-ativo* t))
   (when (member tipo '(:mouse-move :mouse-down :key-down)) (setf *gamepad-ativo* nil))
   ;; O modo de fios captura eventos antes das ferramentas destrutivas normais.
@@ -3677,9 +3691,9 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
              (or (and (eq tipo :key-down) (sdl2:scancode= (first dados) :scancode-c))
                  (and (eq tipo :controller-down) (= (first dados) 3))))
     (alternar-modo-circuito mundo)
-    (return-from entrada t))
+    (return-from entrada-canonica t))
   (when (and (eq *tela-ui* :playing) *modo-circuito*)
-    (when (entrada-circuito mundo tipo dados) (return-from entrada t)))
+    (when (entrada-circuito mundo tipo dados) (return-from entrada-canonica t)))
   (if (eq *tela-ui* :technology)
       (entrada-arvore-tecnologica mundo tipo dados)
       (if (not (eq *tela-ui* :playing))
@@ -3906,6 +3920,7 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
 (defun start (&key (language :en) (seed 1701) (difficulty :standard) safe-mode)
   (setf *semente-atual* seed *dificuldade-atual* difficulty *pular-menu-principal* nil)
   (set-language language) (preparar :safe-mode safe-mode)
+  (inicializar-perfil)
   (carregar-configuracoes)
   (run-game (configurar) :world (new-game :seed seed :difficulty difficulty)))
 

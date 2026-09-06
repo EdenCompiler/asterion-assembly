@@ -1,7 +1,7 @@
 SBCL ?= sbcl
 QUICKLISP := $(HOME)/quicklisp/setup.lisp
 
-.PHONY: run test playtest build-linux package-linux smoke-package clean
+.PHONY: run test playtest playtest-first-hour build-linux package-linux smoke-package clean
 
 run:
 	$(SBCL) --script run.lisp
@@ -19,6 +19,11 @@ playtest:
 	xvfb-run -a -s '-screen 0 1920x1080x24' bash tests/virtual-settings-playtest.sh
 	xvfb-run -a -s '-screen 0 1280x720x24' env SDL_AUDIODRIVER=dummy timeout 60 $(SBCL) --script tests/sdl-controller-playtest.lisp
 	xvfb-run -a -s '-screen 0 1280x720x24' env SDL_AUDIODRIVER=dummy timeout 60 $(SBCL) --script tests/sdl-error-smoke.lisp
+	xvfb-run -a -s '-screen 0 1280x720x24' bash tests/virtual-player-ui-playtest.sh
+
+playtest-first-hour:
+	xvfb-run -a -s '-screen 0 1280x720x24' bash tests/virtual-first-hour-playtest.sh mouse
+	xvfb-run -a -s '-screen 0 1280x720x24' bash tests/virtual-first-hour-playtest.sh gamepad
 
 build-linux:
 	mkdir -p dist/linux

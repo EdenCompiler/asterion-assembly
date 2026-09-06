@@ -30,6 +30,13 @@ Versão de desenvolvimento; não é uma declaração de aceite da demo pública.
   volume mestre, efeitos e alertas separados, redução de flashes e daltonismo.
   Perfis S-expression com leitura sem avaliação e gravação temporária/rename.
   Perfil inválido é preservado e não pode ser sobrescrito silenciosamente.
+- Remapeamento persistente de teclado, mouse, botões e eixos de gamepad,
+  inversão, troca de conflitos e cancelamento de emergência. Perfis selecionáveis
+  e criados pela UI; lista de saves manuais/automáticos, metadados e confirmação
+  de sobrescrita com Cancelar padrão. Preferências antigas sem bindings usam os padrões.
+- Inventário de construções por `I` / R3, com transferências conservativas e
+  jogo pausado. Água inicial garantida em novos mundos; kit do contador inclui
+  o cobre da lâmpada. Correções descobertas jogando pela fila de eventos SDL.
 - API/save 3 recusa versões anteriores. Saves novos: `saves/v3/`.
   `ASTERION_SAVE_DIR` seleciona outra pasta. Testes têm saves isolados.
 - Executável: `--headless-smoke` e `--render-smoke`, este último produzindo
@@ -54,12 +61,21 @@ direita alterna paleta. Analógico esquerdo move o personagem.
 
 ## Evidências locais
 
-- `make test`: 322 verificações, incluindo os seis desafios nas quatro
+- `make test`: 353 verificações, incluindo os seis desafios nas quatro
   dificuldades, casos negativos, conservação da bomba e eventos de gamepad.
 - Playtests: oito telas de menu, 27 capturas gerais, cinco de circuitos,
   três de configurações e um readback de gamepad SDL (44 imagens).
   Resolução 1600×900, fullscreen 1920×1080, UI 90%, volumes e perfil foram
   exercitados por mouse real em X virtual com Openbox.
+- Novo playtest SDL de remapeamento e seletores: captura de teclas/botões/mouse,
+  movimento com tecla remapeada, troca de perfis, save/load, cancelamento e
+  confirmação de sobrescrita. Também verifica soltura e desconexão em menus.
+  Evidências em `build/player-ui-playtest/`; fonte `tests/sdl-player-ui-playtest.lisp`.
+  Painéis novos conferidos também em PT, 1600×900, UI 90%, incluindo sobrescrita.
+- Duas jornadas de entrada SDL completaram os seis desafios e uma hora simulada,
+  com três autosaves e recarga manual. Houve interrupção do ambiente e retomada
+  do tick 72.000; não são sessões contínuas. Verificação final encerrou com código 0
+  nos dois modos. [Relatório e limitações](PLAYTEST-3-2026-09-06.md).
 - Gamepad virtual conectado pela SDL: botões, fio, abas, cor/brilho da lâmpada,
   eixo do cursor e desconexão com eixos zerados. Não apenas chamadas à API de entrada.
 - Benchmark isolado: 5.000 dispositivos, 10.000 fios, 1.000 combinadores;
@@ -90,6 +106,7 @@ Reproduzir:
 ```sh
 make test
 make playtest
+make playtest-first-hour
 sbcl --script tests/circuit-benchmark.lisp
 make smoke-package
 xvfb-run -a bash tests/package-smoke-wine.sh /caminho/asterion-assembly-windows-x64.zip
@@ -98,20 +115,31 @@ xvfb-run -a bash tests/package-smoke-wine.sh /caminho/asterion-assembly-windows-
 O teste de fullscreen requer Openbox em `PATH` (ou caminho absoluto em
 `ASTERION_TEST_WM`) dentro do X virtual. Não usa o display do jogador.
 Preferências: `saves/v3/profiles/default.sexp`; `ASTERION_PROFILE` seleciona
-outro perfil (letras ASCII, números, hífen e sublinhado). Não há seletor de
-perfis na interface nesta etapa. Fullscreen usa a resolução do desktop;
+outro perfil (letras ASCII, números, hífen e sublinhado). Configurações → Perfis
+cria/seleciona perfis e persiste a escolha. Fullscreen usa a resolução do desktop;
 a resolução escolhida é usada ao voltar ao modo janela.
+
+`make playtest-first-hour` executa duas jornadas sem preparar fábricas por API:
+construção, transferências, fios e configurações são enviados pela fila SDL.
+Cada uma cobre os seis desafios e 108.000 ticks a 4×, três autosaves, save manual
+e recarga pelo seletor. É aproximadamente um quarto de hora real por modo,
+mais pausas de menus e tempo de renderização. `ASTERION_SHORT_JOURNEY=1` executa
+somente o percurso dos desafios, sem alegar uma hora nem exigir três autosaves.
+Os wrappers criam pastas novas em `build/` e preservam logs, saves e readbacks.
+`ASTERION_RESUME_JOURNEY=1` na execução Lisp direta retoma, pelo seletor, o
+save de maior tick em `ASTERION_SAVE_DIR` (deve já ter concluído os desafios).
+Esse modo é recuperação de teste interrompido, não substitui o percurso inicial.
 
 ## Ainda necessário antes de fechar 3.0
 
-- Playtest completo da primeira hora por teclado/mouse e apenas gamepad;
-  calibrar duração, economia e instruções. Os testes automatizados montam
-  cenários via API e não comprovam uma campanha humana de uma hora.
+- Validar a primeira hora com pessoas para calibrar duração, economia e
+  instruções. Há uma jornada automatizada pela SDL, além dos testes de cenários
+  por API; nenhuma delas equivale a uma campanha humana de uma hora.
 - Melhorar a seleção de sinais com busca visual/paginação; o ciclo atual inclui
   todo o catálogo, mas ainda é trabalhoso para grandes conjuntos de mods.
-- Completar remapeamento de teclado/gamepad, seletor de perfis, seleção de saves
-  e confirmação explícita de sobrescrita. UI acima de 100% exige reflow dos
-  painéis antigos. Música/ambiente e opções adicionais de acessibilidade seguem pendentes.
+- Atualizar todos os diagramas/atalhos antigos para refletirem remapeamento;
+  a ajuda principal já é dinâmica. UI acima de 100% exige reflow dos painéis
+  antigos. Música/ambiente e opções adicionais de acessibilidade seguem pendentes.
 - Ampliar sensores/testes, erros de mods, combinações incompatíveis e recuperação
   automática de gravação interrompida; `.bak` atualmente oferece cópia anterior.
 - Validar gamepads físicos, mais resoluções e ausência de flicker em sessões longas.
@@ -129,5 +157,7 @@ Local automated checks are not a substitute for the full first-hour mouse and
 controller playthroughs. Actuator controls, persisted display/audio profiles and
 real SDL virtual-controller tests are now implemented. Linux and native Windows
 Server 2022 CI passed, including packaged OpenGL readback and matching simulation
-hashes. Consumer Windows/GPU coverage, remapping, save/profile pickers and
-commercial polish still require completion.
+hashes for the earlier CI revision. Remapping and save/profile pickers are now
+implemented and locally exercised through SDL. Current changes still need a new
+native Windows CI run. Human first-hour tuning, consumer Windows/GPU coverage
+and commercial polish still require completion.

@@ -1,6 +1,15 @@
 # Changelog
 
-## 3.0.0-dev — 2026-09-05
+## 3.0.0-dev — 2026-09-06
+
+- Remapeamento de teclado, mouse, gamepad e eixos com conflitos trocados e
+  cancelamento reservado; preferências e perfil ativo persistem entre sessões.
+- Seletores de perfis e saves, metadados, criação numerada e confirmação de
+  sobrescrita com Cancelar padrão; arquivos incompatíveis permanecem intactos.
+- Inventário por I/R3, água inicial garantida e cobre no kit da lâmpada:
+  removidos bloqueios encontrados no percurso por entradas SDL reais.
+- Added SDL-input journeys for both keyboard/mouse and virtual controller,
+  plus remapping/profile/save UI regression tests. Human pacing remains unvalidated.
 
 - Corrigido resíduo de coordenadas da fauna entre Linux e Windows; smoke nativo
   compara 120 ticks completos, não apenas circuitos estáticos.
@@ -13,7 +22,7 @@
 - Perfis seguros, resolução/fullscreen, UI 75–100% e áudio por grupos.
 - Alarmes sintetizados originais; catálogo de sinais inclui conteúdo de mods.
 - Testes de mouse em fullscreen e gamepad virtual pela SDL com hotplug.
-- Primeira hora humana, remapeamento e seletor de saves ainda pendentes.
+- Primeira hora humana e matriz de GPUs/Windows de jogador ainda pendentes.
 - Added physical red/green circuits, typed signals, separate combinator ports,
   dirty-only graph rebuilds, a port index and delayed per-device memory.
 - Added stable worker buffers, canonical topology hashes and safe schema-3 saves.

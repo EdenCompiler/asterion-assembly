@@ -27,6 +27,8 @@ colmeia ao final dos nove capítulos e destrua-a. O mundo continua como sandbox.
 - Mouse wheel: zoom
 - Space or controller Start: pause
 - F1/F2/F3: 1×, 2× and 4× simulation
+- I or controller R3: building inventory; insert/take up to 10 items per action /
+  inventário da construção sob o cursor; inserir/retirar até 10 itens por ação
 - H: help overlay / ajuda
 - B: toggle build catalog and sector minimap / catálogo e minimapa
 - T: technology tree / árvore tecnológica
@@ -112,3 +114,50 @@ Alert to check audio safely. `Tab` or controller shoulders switch Logic/Controls
 in the circuit panel. Pump direction, splitter priority, lamps, alarms and
 decider copy-count are configurable without text entry. Selecting a comparison
 signal uses its current value instead of the constant threshold.
+
+## Remapeamento, perfis e saves / Bindings, profiles and saves
+
+Em **Configurações → Controles**, selecione uma ação e pressione a nova tecla,
+botão de gamepad ou botão do mouse. Entradas em conflito são trocadas, nunca
+duplicadas. Eixos podem trocar de função e ser invertidos. `Esc` permanece
+reservado para cancelar/voltar e Enter do teclado numérico confirma, mesmo
+após remapear a confirmação normal. Use PageUp/PageDown, roda ou ombros para
+paginar as listas. A ajuda principal acompanha os controles escolhidos;
+diagramas antigos ainda descrevem os atalhos padrão.
+
+**Configurações → Perfis** cria uma cópia das preferências atuais e permite
+selecionar perfis existentes. O último perfil escolhido é restaurado ao abrir
+o jogo; `ASTERION_PROFILE` tem prioridade na inicialização. Nomes gerados são
+`profile-001`, `profile-002`, etc. Perfis guardam preferências, não mundos
+separados: os saves da pasta são compartilhados. Arquivos inválidos são
+preservados, com erro na interface, sem aplicação parcial das preferências.
+
+**Continuar** abre a lista de saves manuais, quicksave e três autosaves
+rotativos. **Pausa → Salvar** cria `manual-001.save`, etc., ou oferece
+sobrescrita de um arquivo existente, com **Cancelar selecionado por padrão**.
+Uma sobrescrita guarda a versão anterior em `.bak`. Saves de schemas antigos
+continuam bloqueados. Voltar ao menu principal também mantém o quicksave
+automático; isso não substitui um save manual.
+
+No inventário (`I` / R3), a primeira linha troca entre inserir e retirar.
+As transferências pausam o jogo, respeitam o alcance do personagem e não criam
+itens. O inventário mostra o buffer da construção, não retira diretamente
+itens já presentes nas pistas de uma esteira. Há água perto da base em mundos
+novos e o kit do desafio de contador inclui cobre para a lâmpada.
+
+**Settings → Controls** captures keyboard, controller and mouse bindings, swaps
+conflicts and supports axis swaps/inversion. Escape always cancels; keypad Enter
+is an emergency confirm. PageUp/PageDown, wheel or shoulders change pages. Main
+help reflects bindings; older diagrams still show defaults.
+
+**Settings → Profiles** copies current preferences or activates an existing
+profile. The last selection persists; `ASTERION_PROFILE` overrides it at startup.
+Profiles share the save folder. **Continue** selects a manual/quick/rotating save;
+**Pause → Save** creates a numbered manual save or asks before overwriting, with
+Cancel focused by default. Previous files are kept as `.bak`; incompatible saves
+are never overwritten. Returning to the main menu still writes the quicksave.
+
+Point at a nearby building and press `I` / R3 to insert or take up to 10 items
+per action while paused. The first row changes transfer direction. This accesses
+the building buffer, not belt lanes. New worlds guarantee nearby water; the
+counter reward kit supplies copper wire for the lamp.
