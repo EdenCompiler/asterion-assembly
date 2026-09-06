@@ -1825,10 +1825,12 @@ Escalas de 75 a 100% preservam a área útil mínima de 1280×720 da interface."
   (cffi:foreign-string-to-lisp (cffi:mem-ref (autowrap:ptr info) :pointer)))
 (defun indice-driver-opengl ()
   "Seleciona um índice explícito: hints permitem fallback silencioso da SDL."
+  (engine-log :info "Consultando drivers SDL")
   (or (loop for i below (sdl2:get-num-render-drivers)
             for info = (sdl2:get-render-driver-info i)
             when (unwind-protect (string= "opengl" (nome-driver-renderizacao info))
-                   (sdl2::free-render-info info)) return i)
+                   (sdl2::free-render-info info))
+              return (progn (engine-log :info "Driver OpenGL selecionado: ~D" i) i))
       (error "OpenGL 3.3 é obrigatório / OpenGL 3.3 is required.")))
 (defun verificar-renderizador-opengl (renderer)
   (let ((info (sdl2:get-renderer-info renderer)))
