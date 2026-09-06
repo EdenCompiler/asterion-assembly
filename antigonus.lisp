@@ -1848,8 +1848,17 @@ Escalas de 75 a 100% preservam a área útil mínima de 1280×720 da interface."
       (unless (and maior menor (or (> maior 3) (and (= maior 3) (>= menor 3))))
         (error "OpenGL 3.3 é obrigatório / required; encontrado / found: ~A" versao)))
     (engine-log :info "Renderer: opengl; OpenGL: ~A; batching SDL ativo" versao)))
+(defmacro com-sdl-segura ((&rest subsistemas) &body corpo)
+  "Transporta erros da thread SDL ao chamador, sem deixá-lo esperando no canal."
+  (let ((falha (gensym "FALHA")))
+    `(let ((,falha nil))
+       (sdl2:with-init (,@subsistemas)
+         (handler-case (progn ,@corpo)
+           (error (erro) (setf ,falha erro))))
+       (when ,falha (error ,falha)))))
+
 (defun executar-sdl ()
-  (sdl2:with-init (:video :audio :gamecontroller)
+  (com-sdl-segura (:video :audio :gamecontroller)
     (engine-log :info "SDL inicializada; criando janela OpenGL")
     ;; A versão 2.0 fixa o backend SDL no driver OpenGL e habilita o lote
     ;; interno de comandos. Não há seleção automática de Direct3D/software.
@@ -1886,6 +1895,8 @@ Escalas de 75 a 100% preservam a área útil mínima de 1280×720 da interface."
                               when (sdl2:game-controller-p i) collect (sdl2:game-controller-open i)))
               (ultimo (get-internal-real-time)) (acumulador 0.0)
               (passo (/ 1.0 30.0)))
+          (unwind-protect
+           (progn
           (when antigonus::*modo-video* (apply #'set-display-mode antigonus::*modo-video*))
           (sdl2:with-event-loop (:method :poll)
             (:keydown (:keysym keysym) (atualizar-tecla keysym t))
@@ -1940,16 +1951,18 @@ Escalas de 75 a 100% preservam a área útil mínima de 1280×720 da interface."
                          antigonus::*mundo-atual*
                          (/ acumulador passo)))
               (sdl2:render-present renderer))
-            (:quit () t))
-          (dolist (controle controles) (sdl2:game-controller-close controle)))
+            (:quit () t)))
+          (dolist (controle controles) (sdl2:game-controller-close controle))
         (when antigonus::*audio-pronto*
           (maphash (lambda (id som) (declare (ignore id))
-                     (when (getf som :chunk) (sdl2-mixer:free-chunk (getf som :chunk))))
+                     (when (getf som :chunk)
+                       (sdl2-mixer:free-chunk (getf som :chunk))
+                       (setf (getf som :chunk) nil)))
                    antigonus::*sons*)
           (sdl2-mixer:close-audio) (sdl2-mixer:quit)
           (setf antigonus::*audio-pronto* nil))
         (unload-sprites)
-        (sdl2-image:quit)))))
+        (sdl2-image:quit)))))))
 
 (in-package #:antigonus)
 (defun run-game (config &key world headless (ticks 0))

@@ -18,6 +18,7 @@ playtest:
 	xvfb-run -a -s '-screen 0 1280x720x24' bash tests/virtual-circuit-playtest.sh
 	xvfb-run -a -s '-screen 0 1920x1080x24' bash tests/virtual-settings-playtest.sh
 	xvfb-run -a -s '-screen 0 1280x720x24' env SDL_AUDIODRIVER=dummy timeout 60 $(SBCL) --script tests/sdl-controller-playtest.lisp
+	xvfb-run -a -s '-screen 0 1280x720x24' env SDL_AUDIODRIVER=dummy timeout 60 $(SBCL) --script tests/sdl-error-smoke.lisp
 
 build-linux:
 	mkdir -p dist/linux
