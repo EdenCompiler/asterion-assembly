@@ -378,6 +378,8 @@
     (let ((valor (max -1.0 (min 1.0 (/ (second dados) 32767.0)))))
       (setf (aref *eixos-gamepad* (first dados)) (if (< (abs valor) .18) 0.0 valor)))
     (return-from entrada-jogador t))
+  (when (eq *tela-ui* :circuit-signals)
+    (return-from entrada-jogador (entrada-seletor-sinal mundo tipo dados)))
   (when (member *tela-ui* '(:controls :profiles :saves :confirm :inventory))
     (return-from entrada-jogador (entrada-painel mundo tipo dados)))
   (when (eq *tela-ui* :playing)

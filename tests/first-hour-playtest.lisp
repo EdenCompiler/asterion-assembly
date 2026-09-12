@@ -13,6 +13,7 @@
 (defvar *teste-passo-frame* 0)
 (defvar *teste-movimento* nil)
 (defvar *teste-inventario-capturado* nil)
+(defvar *teste-seletor-capturado* nil)
 (defvar *teste-pasta* (or (uiop:getenv "ASTERION_TEST_OUTPUT")
                          (format nil "build/first-hour-~A/" (if *teste-gamepad* "gamepad" "mouse"))))
 (defun evento-tecla-teste (codigo pressionada)
@@ -99,12 +100,32 @@
      (destructuring-bind (op x y linha valor) cmd
        (declare (ignore op))
        (when (selecionar-dispositivo-teste w x y)
-         (cond ((plusp *pagina-dispositivo-circuito*) (pulso-teste :scancode-tab 9) nil)
+         (cond ((eq *tela-ui* :circuit-signals)
+                (unless *teste-seletor-capturado*
+                  (capture-renderer (format nil "~Asignal-picker.ppm" *teste-pasta*))
+                  (setf *teste-seletor-capturado* t))
+                (let* ((opcoes (sinais-filtrados-seletor))
+                       (indice (position valor opcoes :test #'equal)))
+                  (assert indice)
+                  (if *teste-gamepad*
+                      (if (/= indice *indice-seletor-sinal*) (pulso-teste :scancode-right 14)
+                          (pulso-teste :scancode-return 0))
+                      (multiple-value-bind (ox oy) (origem-seletor-sinal)
+                        (let ((pagina-alvo (floor indice 24))
+                              (pagina-atual (floor *indice-seletor-sinal* 24)))
+                          (cond ((< pagina-atual pagina-alvo) (clicar-teste (+ ox 244) (+ oy 469)))
+                                ((> pagina-atual pagina-alvo) (clicar-teste (+ ox 60) (+ oy 469)))
+                                (t (let ((local (mod indice 24)))
+                                     (clicar-teste (+ ox 76 (* (mod local 6) 112))
+                                                   (+ oy 142 (* (floor local 6) 72))))))))) nil))
+               ((plusp *pagina-dispositivo-circuito*) (pulso-teste :scancode-tab 9) nil)
                ((equal (ler-campo-teste (building-at w x y) linha) valor) t)
                (*teste-gamepad*
-                (when (apontar-teste (- (screen-width) 100) (+ 240 (* linha 42)))
+                (when (apontar-teste (- (screen-width) (if (= linha 3) 50 100)) (+ 240 (* linha 42)))
                   (if (/= *campo-circuito-gamepad* linha) (pulso-teste nil 13) (pulso-teste nil 0))) nil)
-               (t (clicar-teste (- (screen-width) 50) (+ 240 (* linha 42))) nil)))))
+               (t (let* ((b (building-at w x y))
+                         (campo-sinal (campo-sinal-circuito b *pagina-dispositivo-circuito* linha)))
+                    (clicar-teste (- (screen-width) (if campo-sinal 190 50)) (+ 240 (* linha 42))) nil))))))
     (:wire
      (destructuring-bind (op ax ay pa bx by pb) cmd
        (declare (ignore op))

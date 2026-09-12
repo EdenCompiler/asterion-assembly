@@ -26,6 +26,13 @@ xdotool mousemove --window "$window" 448 296 click 1
 xdotool mousemove --window "$window" 640 296 click 1
 sleep 0.2
 import -window "$window" build/circuit-playtest/green-connected.png
+# Centro do cartão de sinal abre o catálogo; filtre Virtual e escolha SIGNAL-CHECK.
+xdotool mousemove --window "$window" 1090 282 click 1
+sleep 0.2
+import -window "$window" build/circuit-playtest/signal-picker.png
+xdotool mousemove --window "$window" 776 157 click 1
+xdotool mousemove --window "$window" 580 222 click 1
+sleep 0.2
 xdotool mousemove --window "$window" 640 296 click 3
 xdotool mousemove --window "$window" 980 135 click 1
 sleep 0.2
@@ -48,4 +55,4 @@ wait "$game_pid"
 trap - EXIT
 grep -q 'CIRCUIT INPUT OK' build/circuit-playtest/game.log
 if grep -Eiq 'unhandled|fatal|backtrace|ANTIGONUS ERROR' build/circuit-playtest/game.log; then exit 1; fi
-echo 'Circuit mouse playtest: connections, drag, refund, palette, lamp controls and rendering OK'
+echo 'Circuit mouse playtest: connections, signal picker, refund, palette, lamp controls and rendering OK'

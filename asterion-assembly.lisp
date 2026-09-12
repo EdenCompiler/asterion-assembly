@@ -2449,7 +2449,7 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
     (draw-text (format nil "~A  |  ~A: 1" (string-upcase (string *cor-fio-circuito*))
                        (translate :wire-cost))
                (+ x 14) (+ y 45) '(205 220 228 255) :scale 1)
-    (draw-text (translate :circuit-help) (+ x 14) (+ y 70) '(139 165 178 255) :scale 1)
+    (draw-text (ajuda-fios-remapeada) (+ x 14) (+ y 70) '(139 165 178 255) :scale 1)
     (if (null predio)
         (draw-text (translate :select-device) (+ x 14) (+ y 116) '(242 190 79 255) :scale 1)
         (let* ((config (configuracao-circuito-padrao predio))
@@ -2466,11 +2466,12 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
           (draw-text (format nil "#~D  ~A" (building-id predio)
                              (string-upcase (string (building-kind predio))))
                      (+ x 14) (+ y 100) '(235 241 244 255) :scale 1)
-          (draw-text (if (zerop *pagina-dispositivo-circuito*)
-                         (if (eq (current-language) :pt) "[LOGICA]  CONTROLES >  TAB/LB/RB"
-                              "[LOGIC]  CONTROLS >  TAB/LB/RB")
-                         (if (eq (current-language) :pt) "< LOGICA  [CONTROLES]  TAB/LB/RB"
-                              "< LOGIC  [CONTROLS]  TAB/LB/RB"))
+          (draw-text (format nil "~A | ~A"
+                             (if (zerop *pagina-dispositivo-circuito*)
+                                 (texto-local "[LOGICA] CONTROLES" "[LOGIC] CONTROLS")
+                                 (texto-local "LOGICA [CONTROLES]" "LOGIC [CONTROLS]"))
+                             (if *gamepad-ativo* (format nil "~A/~A" (rotulo-botao 9) (rotulo-botao 10))
+                                 (rotulo-tecla :scancode-tab)))
                      (+ x 14) (+ y 122) '(241 193 90 255) :scale 1)
           (loop for (titulo valor) in
                 (if (plusp *pagina-dispositivo-circuito*)
@@ -2500,7 +2501,11 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
               (desenhar-icone-item (second sinal) (+ x 16) (+ linha-y 7) 20))
             (let ((texto (format nil "~A  < ~A >" titulo valor)))
               (draw-text (subseq texto 0 (min 36 (length texto)))
-                         (+ x 38) (+ linha-y 12) '(197 220 229 255) :scale 1)))
+                         (+ x 38) (+ linha-y 12) '(197 220 229 255) :scale 1))
+            (when (campo-sinal-circuito predio *pagina-dispositivo-circuito* i)
+              (draw-text "..." (+ x 290) (+ linha-y 12) '(112 245 220 255) :scale 1)))
+          (draw-text (texto-local "SINAL: CENTRO ABRE / BORDA CICLA" "SIGNAL: CENTER OPENS / EDGE CYCLES")
+                     (+ x 14) (+ y 348) '(139 165 178 255) :scale 1)
           (draw-text (translate :live-signals) (+ x 14) (+ y 367) '(112 245 220 255) :scale 1)
           (loop for (s . valor) in (sinais-visiveis-predio mundo predio)
                 for i from 0 do
@@ -2686,7 +2691,7 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
           (when (< i (1- (length icones)))
             (draw-text ">" (+ 65 (* i 56)) 288 '(244 190 79 255) :scale 1)))
         (loop for linha in linhas for i from 0 do
-          (draw-text linha 23 (+ 320 (* i 19)) '(193 211 220 255) :scale 1))))))
+          (draw-text (remapear-linha-guia linha) 23 (+ 320 (* i 19)) '(193 211 220 255) :scale 1))))))
 
 (defun desenhar-notificacoes (mundo)
   (let ((ativas (remove-if (lambda (n) (<= (getf n :until) (world-tick mundo)))
@@ -3073,6 +3078,7 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
   (declare (ignore alpha))
   (setf *mundo-corrente-ui* mundo)
   (case *tela-ui*
+    (:circuit-signals (desenhar-seletor-sinal mundo))
     ((:controls :profiles :saves :confirm :inventory) (desenhar-painel-jogador mundo))
     (:main-menu (desenhar-menu-principal))
     (:settings (desenhar-configuracoes))
@@ -3434,7 +3440,6 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
 
 (defun editar-configuracao-circuito (mundo x y)
   "Edita campos por cartões; retorna verdadeiro quando o painel consumiu o clique."
-  (declare (ignore mundo))
   (let ((painel-x (- (screen-width) 350)) (predio *predio-circuito-selecionado*))
     (when (and *modo-circuito* (>= x painel-x) (<= 204 y 227))
       (setf *pagina-dispositivo-circuito* (- 1 *pagina-dispositivo-circuito*)
@@ -3446,6 +3451,10 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
              (*sinais-circuito-ui* (sinais-disponiveis-circuito))
              (condicao (circuit-device-config-condition config)))
         (unless (and (< linha 5) (< (mod (- y 231) 42) 34))
+          (return-from editar-configuracao-circuito t))
+        (when (and (< (+ painel-x 70) x (+ painel-x 260))
+                   (campo-sinal-circuito predio *pagina-dispositivo-circuito* linha))
+          (abrir-seletor-sinal predio (campo-sinal-circuito predio *pagina-dispositivo-circuito* linha))
           (return-from editar-configuracao-circuito t))
         (when (plusp *pagina-dispositivo-circuito*)
           (let ((campo (nth linha (campos-avancados-circuito predio))))
@@ -3779,6 +3788,14 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
              ((sdl2:scancode= (first dados) :scancode-tab)
               (setf *pagina-dispositivo-circuito* (- 1 *pagina-dispositivo-circuito*)
                     *campo-circuito-gamepad* 0) t)
+             ((sdl2:scancode= (first dados) :scancode-up)
+              (setf *campo-circuito-gamepad* (mod (1- *campo-circuito-gamepad*) 5)) t)
+             ((sdl2:scancode= (first dados) :scancode-down)
+              (setf *campo-circuito-gamepad* (mod (1+ *campo-circuito-gamepad*) 5)) t)
+             ((or (sdl2:scancode= (first dados) :scancode-return)
+                  (sdl2:scancode= (first dados) :scancode-kp-enter))
+              (editar-configuracao-circuito mundo (- (screen-width) 190)
+                                           (+ 240 (* 42 *campo-circuito-gamepad*))) t)
              ((sdl2:scancode= (first dados) :scancode-escape) (cancelar) t)))
       (:mouse-down
        (destructuring-bind (botao x y) dados
@@ -3801,7 +3818,12 @@ A ordem visual é sul, sudoeste, oeste, noroeste, norte, nordeste, leste, sudest
       (:controller-down
        (case (first dados)
          (0 (if (>= *cursor-gamepad-x* (- (screen-width) 350))
-                (editar-configuracao-circuito mundo (- (screen-width) 50)
+                (editar-configuracao-circuito mundo
+                   (cond ((and *predio-circuito-selecionado*
+                               (campo-sinal-circuito *predio-circuito-selecionado* *pagina-dispositivo-circuito* *campo-circuito-gamepad*))
+                          (- (screen-width) 190))
+                         ((and (zerop *pagina-dispositivo-circuito*) (= *campo-circuito-gamepad* 3)) *cursor-gamepad-x*)
+                         (t (- (screen-width) 50)))
                                                (+ 240 (* 42 *campo-circuito-gamepad*)))
                 (selecionar-porta-circuito mundo *cursor-gamepad-x* *cursor-gamepad-y*)))
          (1 (cancelar)) (2 (trocar-cor))

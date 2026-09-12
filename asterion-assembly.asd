@@ -4,10 +4,11 @@
   :license "MIT"
   :depends-on ("antigonus")
   :serial t
-  :components ((:file "asterion-assembly") (:file "player-ui")))
+  :components ((:file "asterion-assembly") (:file "player-ui") (:file "circuit-ui")))
 
 (asdf:defsystem "asterion-assembly/tests"
   :depends-on ("asterion-assembly")
   :serial t
   :components ((:file "tests/tests") (:file "tests/circuits") (:file "tests/tutorial-circuits")
-               (:file "tests/controls-settings") (:file "tests/player-ui")))
+               (:file "tests/controls-settings") (:file "tests/player-ui")
+               (:file "tests/circuit-picker")))

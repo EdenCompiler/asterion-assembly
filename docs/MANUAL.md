@@ -81,13 +81,21 @@ A primeira sequência possui seis desafios funcionais; manter o sistema correto
 por seis segundos preenche a barra. Sensor olha a construção à sua frente (seta).
 Use `C` para fios e o painel de configurações. Combinadores têm portas de entrada
 e saída separadas. `X` troca cor; botão direito corta uma conexão.
+Clique no centro de um cartão de sinal para abrir o catálogo visual. Filtre por
+itens, fluidos, sinais virtuais ou especiais e navegue pelas páginas; clicar nas
+bordas do cartão mantém o ciclo rápido. Teclado usa setas, Enter, Tab e
+PageUp/PageDown. No gamepad, direcional e `A` selecionam, `X` troca categoria e
+os ombros mudam de página. O jogo fica pausado enquanto o catálogo está aberto.
 Os guias contextuais explicam cada montagem. Ataques começam apenas depois do
 desafio de contador; dificuldade pacífica continua sem combate.
 
 The six initial challenges check sustained operation, not building counts.
 Sensors read the building in front of their arrow. Press `C` for wiring, `X` for
 wire color; right-click cuts a connection. Combinators separate input/output
-ports. Context guides explain each setup. Combat is deferred until the counter
+ports. Click the center of a signal card for the paginated icon catalog; filter
+items, fluids, virtual or special signals. Keyboard uses arrows/Enter/Tab and
+PageUp/PageDown; controller uses the D-pad/A/X and shoulders. The game pauses
+while choosing. Context guides explain each setup. Combat is deferred until the counter
 challenge; peaceful mode remains combat-free.
 
 Saves novos / new saves: `saves/v3/`. Saves anteriores são incompatíveis e

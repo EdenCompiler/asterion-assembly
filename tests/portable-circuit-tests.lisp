@@ -8,4 +8,5 @@
 (asterion-tests::teste-atuadores-avancados)
 (asterion-tests::teste-configuracoes-persistentes)
 (asterion-tests::teste-paineis-jogador)
+(asterion-tests::teste-seletor-visual-sinais)
 (format t "~&PORTABLE CIRCUIT TESTS OK: ~D~%" asterion-tests::*executados*)

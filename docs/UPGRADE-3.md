@@ -37,6 +37,10 @@ Versão de desenvolvimento; não é uma declaração de aceite da demo pública.
 - Inventário de construções por `I` / R3, com transferências conservativas e
   jogo pausado. Água inicial garantida em novos mundos; kit do contador inclui
   o cobre da lâmpada. Correções descobertas jogando pela fila de eventos SDL.
+- Catálogo visual de sinais com ícones estáticos, filtros de item/fluido/virtual/
+  especial e paginação. Mouse, teclado e gamepad aplicam a mesma configuração
+  validada; o modal pausa a simulação e preserva a configuração se o alvo sumir.
+  Atalhos no painel de circuitos e linhas contextuais principais refletem o remapeamento.
 - API/save 3 recusa versões anteriores. Saves novos: `saves/v3/`.
   `ASTERION_SAVE_DIR` seleciona outra pasta. Testes têm saves isolados.
 - Executável: `--headless-smoke` e `--render-smoke`, este último produzindo
@@ -61,7 +65,7 @@ direita alterna paleta. Analógico esquerdo move o personagem.
 
 ## Evidências locais
 
-- `make test`: 353 verificações, incluindo os seis desafios nas quatro
+- `make test`: 378 verificações, incluindo os seis desafios nas quatro
   dificuldades, casos negativos, conservação da bomba e eventos de gamepad.
 - Playtests: oito telas de menu, 27 capturas gerais, cinco de circuitos,
   três de configurações e um readback de gamepad SDL (44 imagens).
@@ -79,10 +83,10 @@ direita alterna paleta. Analógico esquerdo move o personagem.
 - Gamepad virtual conectado pela SDL: botões, fio, abas, cor/brilho da lâmpada,
   eixo do cursor e desconexão com eixos zerados. Não apenas chamadas à API de entrada.
 - Benchmark isolado: 5.000 dispositivos, 10.000 fios, 1.000 combinadores;
-  16,53 ms/tick (60,5 UPS) neste computador na verificação final local. Não equivale ao desempenho do
+  13,20 ms/tick (75,8 UPS) neste computador na verificação atual. Não equivale ao desempenho do
   jogo inteiro nem ao teste de megabase com renderização.
 - Smoke do ZIP Linux executado localmente e na CI.
-- [CI nativa aprovada em 06/09/2026](https://github.com/EdenCompiler/asterion-assembly/actions/runs/34022245281):
+- [CI nativa aprovada em 06/09/2026](https://github.com/EdenCompiler/asterion-assembly/actions/runs/34058132018):
   Linux, Windows Server 2022 e comparação de hashes. Windows executou o ZIP,
   produziu readback 1280×720 em OpenGL 4.6/Mesa e encerrou normalmente.
   Mesa é driver de teste do runner, não faz parte do ZIP distribuído.
@@ -135,10 +139,11 @@ Esse modo é recuperação de teste interrompido, não substitui o percurso inic
 - Validar a primeira hora com pessoas para calibrar duração, economia e
   instruções. Há uma jornada automatizada pela SDL, além dos testes de cenários
   por API; nenhuma delas equivale a uma campanha humana de uma hora.
-- Melhorar a seleção de sinais com busca visual/paginação; o ciclo atual inclui
-  todo o catálogo, mas ainda é trabalhoso para grandes conjuntos de mods.
-- Atualizar todos os diagramas/atalhos antigos para refletirem remapeamento;
-  a ajuda principal já é dinâmica. UI acima de 100% exige reflow dos painéis
+- Adicionar busca textual opcional ao catálogo visual para conjuntos de mods
+  muito grandes; filtros, ícones e paginação já evitam o ciclo pelo catálogo inteiro.
+- Atualizar os diagramas de montagem restantes para refletirem remapeamento;
+  a ajuda principal, o painel e as linhas contextuais iniciadas por tecla já são dinâmicos.
+  UI acima de 100% exige reflow dos painéis
   antigos. Música/ambiente e opções adicionais de acessibilidade seguem pendentes.
 - Ampliar sensores/testes, erros de mods, combinações incompatíveis e recuperação
   automática de gravação interrompida; `.bak` atualmente oferece cópia anterior.
@@ -158,6 +163,7 @@ controller playthroughs. Actuator controls, persisted display/audio profiles and
 real SDL virtual-controller tests are now implemented. Linux and native Windows
 Server 2022 CI passed, including packaged OpenGL readback and matching simulation
 hashes for the earlier CI revision. Remapping and save/profile pickers are now
-implemented and locally exercised through SDL. Current changes still need a new
-native Windows CI run. Human first-hour tuning, consumer Windows/GPU coverage
+implemented and exercised through SDL. A paginated, category-filtered signal
+picker replaces long cycling and is covered by unit and SDL-input journeys.
+Current changes still need a new native Windows CI run. Human first-hour tuning, consumer Windows/GPU coverage
 and commercial polish still require completion.

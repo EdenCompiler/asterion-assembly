@@ -2,6 +2,10 @@
 
 ## 3.0.0-dev — 2026-09-06
 
+- Catálogo visual paginado para sinais, com ícones e filtros por item, fluido,
+  virtual e especial; funciona com mouse, teclado e gamepad sem digitação.
+- Painel de circuitos e linhas contextuais principais agora mostram os atalhos
+  remapeados. A configuração do dispositivo é preservada se o alvo desaparecer.
 - Remapeamento de teclado, mouse, gamepad e eixos com conflitos trocados e
   cancelamento reservado; preferências e perfil ativo persistem entre sessões.
 - Seletores de perfis e saves, metadados, criação numerada e confirmação de
