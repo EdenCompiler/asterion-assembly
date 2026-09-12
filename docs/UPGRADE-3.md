@@ -86,7 +86,7 @@ direita alterna paleta. Analógico esquerdo move o personagem.
   13,20 ms/tick (75,8 UPS) neste computador na verificação atual. Não equivale ao desempenho do
   jogo inteiro nem ao teste de megabase com renderização.
 - Smoke do ZIP Linux executado localmente e na CI.
-- [CI nativa aprovada em 06/09/2026](https://github.com/EdenCompiler/asterion-assembly/actions/runs/34058132018):
+- [CI nativa aprovada em 12/09/2026](https://github.com/EdenCompiler/asterion-assembly/actions/runs/34720995370):
   Linux, Windows Server 2022 e comparação de hashes. Windows executou o ZIP,
   produziu readback 1280×720 em OpenGL 4.6/Mesa e encerrou normalmente.
   Mesa é driver de teste do runner, não faz parte do ZIP distribuído.
@@ -165,5 +165,6 @@ Server 2022 CI passed, including packaged OpenGL readback and matching simulatio
 hashes for the earlier CI revision. Remapping and save/profile pickers are now
 implemented and exercised through SDL. A paginated, category-filtered signal
 picker replaces long cycling and is covered by unit and SDL-input journeys.
-Current changes still need a new native Windows CI run. Human first-hour tuning, consumer Windows/GPU coverage
-and commercial polish still require completion.
+The current revision passed native Windows packaging/readback, Linux playtests and
+cross-platform deterministic-state comparison. Human first-hour tuning, consumer
+Windows/GPU coverage and commercial polish still require completion.
